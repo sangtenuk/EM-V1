@@ -81,11 +81,18 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
       const { data, error } = await query.order('created_at', { ascending: false })
 
       if (error) throw error
-      setEvents(data)
+      
+      // Transform company property from array to single object
+      const transformedData = data?.map(event => ({
+        ...event,
+        company: Array.isArray(event.company) ? event.company[0] : event.company
+      })) || []
+      
+      setEvents(transformedData)
 
       // Auto-select first event for company users
-      if (userCompany && data && data.length > 0) {
-        setSelectedEventId(data[0].id)
+      if (userCompany && transformedData && transformedData.length > 0) {
+        setSelectedEventId(transformedData[0].id)
       }
     } catch (error: any) {
       toast.error('Error fetching events: ' + error.message)
