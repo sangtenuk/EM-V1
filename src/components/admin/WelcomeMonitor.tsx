@@ -1,5 +1,4 @@
-/* import React, { useState, useEffect } from 'react' */
- import { useState, useEffect } from 'react' 
+import { useState, useEffect } from 'react'
 import { Monitor, Users, Settings, Maximize } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -39,7 +38,6 @@ export default function WelcomeMonitor() {
 
   useEffect(() => {
     if (selectedEventId) {
-      // Set up real-time subscription for new check-ins
       const subscription = supabase
         .channel('check-ins')
         .on(
@@ -83,15 +81,18 @@ export default function WelcomeMonitor() {
     try {
       const { data, error } = await supabase
         .from('events')
-        .select(`
-          id,
-          name,
-          company:companies(name)
-        `)
+        .select(`id, name, company:companies(name)`)  // Assuming 1-to-1 relation
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setEvents(data)
+
+      if (data) {
+        const normalizedData = data.map((event: any) => ({
+          ...event,
+          company: Array.isArray(event.company) ? event.company[0] : event.company
+        }))
+        setEvents(normalizedData)
+      }
     } catch (error: any) {
       console.error('Error fetching events:', error)
     }
@@ -107,13 +108,7 @@ export default function WelcomeMonitor() {
   }
 
   const MonitorDisplay = () => (
-    <div 
-      className="h-full flex items-center justify-center relative"
-      style={{ 
-        backgroundColor: settings.backgroundColor,
-        color: settings.textColor 
-      }}
-    >
+    <div className="h-full flex items-center justify-center relative" style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}>
       <AnimatePresence>
         {latestCheckIn ? (
           <motion.div
@@ -123,40 +118,22 @@ export default function WelcomeMonitor() {
             transition={{ type: "spring", duration: 0.8 }}
             className="text-center"
           >
-            <motion.div
-              initial={{ y: 20 }}
-              animate={{ y: 0 }}
-              className="mb-8"
-            >
+            <motion.div initial={{ y: 20 }} animate={{ y: 0 }} className="mb-8">
               <h1 className="text-6xl md:text-8xl font-bold mb-4">Welcome!</h1>
-              <div className="text-4xl md:text-6xl font-semibold mb-2">
-                {latestCheckIn.name}
-              </div>
+              <div className="text-4xl md:text-6xl font-semibold mb-2">{latestCheckIn.name}</div>
               {settings.showCompany && latestCheckIn.company && (
-                <div className="text-2xl md:text-4xl opacity-80">
-                  {latestCheckIn.company}
-                </div>
+                <div className="text-2xl md:text-4xl opacity-80">{latestCheckIn.company}</div>
               )}
               {settings.showTime && (
-                <div className="text-xl md:text-2xl opacity-60 mt-4">
-                  {new Date(latestCheckIn.check_in_time).toLocaleTimeString()}
-                </div>
+                <div className="text-xl md:text-2xl opacity-60 mt-4">{new Date(latestCheckIn.check_in_time).toLocaleTimeString()}</div>
               )}
             </motion.div>
           </motion.div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
             <Users className="h-32 w-32 mx-auto mb-8 opacity-50" />
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">
-              Welcome to the Event
-            </h1>
-            <p className="text-xl md:text-2xl opacity-80">
-              Waiting for check-ins...
-            </p>
+            <h1 className="text-4xl md:text-6xl font-bold mb-4">Welcome to the Event</h1>
+            <p className="text-xl md:text-2xl opacity-80">Waiting for check-ins...</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -167,10 +144,7 @@ export default function WelcomeMonitor() {
     return (
       <div className="fixed inset-0 z-50">
         <MonitorDisplay />
-        <button
-          onClick={toggleFullscreen}
-          className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors"
-        >
+        <button onClick={toggleFullscreen} className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors">
           Exit Fullscreen
         </button>
       </div>
@@ -195,18 +169,14 @@ export default function WelcomeMonitor() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Settings Panel */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Settings className="h-6 w-6 mr-2" />
             Settings
           </h2>
-
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Event
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Event</label>
               <select
                 value={selectedEventId}
                 onChange={(e) => setSelectedEventId(e.target.value)}
@@ -220,44 +190,23 @@ export default function WelcomeMonitor() {
                 ))}
               </select>
             </div>
-
             <div className="space-y-3">
               <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={settings.showCompany}
-                  onChange={(e) => setSettings({ ...settings, showCompany: e.target.checked })}
-                  className="mr-2"
-                />
+                <input type="checkbox" checked={settings.showCompany} onChange={(e) => setSettings({ ...settings, showCompany: e.target.checked })} className="mr-2" />
                 <span className="text-sm">Show Company</span>
               </label>
-
               <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={settings.showTime}
-                  onChange={(e) => setSettings({ ...settings, showTime: e.target.checked })}
-                  className="mr-2"
-                />
+                <input type="checkbox" checked={settings.showTime} onChange={(e) => setSettings({ ...settings, showTime: e.target.checked })} className="mr-2" />
                 <span className="text-sm">Show Check-in Time</span>
               </label>
-
               <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={settings.autoHide}
-                  onChange={(e) => setSettings({ ...settings, autoHide: e.target.checked })}
-                  className="mr-2"
-                />
+                <input type="checkbox" checked={settings.autoHide} onChange={(e) => setSettings({ ...settings, autoHide: e.target.checked })} className="mr-2" />
                 <span className="text-sm">Auto Hide</span>
               </label>
             </div>
-
             {settings.autoHide && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hide Delay (seconds)
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Hide Delay (seconds)</label>
                 <input
                   type="number"
                   value={settings.hideDelay / 1000}
@@ -268,41 +217,23 @@ export default function WelcomeMonitor() {
                 />
               </div>
             )}
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Background Color
-              </label>
-              <input
-                type="color"
-                value={settings.backgroundColor}
-                onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
-                className="w-full h-10 border border-gray-300 rounded-md"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Background Color</label>
+              <input type="color" value={settings.backgroundColor} onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })} className="w-full h-10 border border-gray-300 rounded-md" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Text Color
-              </label>
-              <input
-                type="color"
-                value={settings.textColor}
-                onChange={(e) => setSettings({ ...settings, textColor: e.target.value })}
-                className="w-full h-10 border border-gray-300 rounded-md"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-2">Text Color</label>
+              <input type="color" value={settings.textColor} onChange={(e) => setSettings({ ...settings, textColor: e.target.value })} className="w-full h-10 border border-gray-300 rounded-md" />
             </div>
           </div>
         </div>
 
-        {/* Preview */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4 flex items-center">
               <Monitor className="h-6 w-6 mr-2" />
               Preview
             </h2>
-            
             <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
               {selectedEventId ? (
                 <MonitorDisplay />
@@ -315,7 +246,6 @@ export default function WelcomeMonitor() {
                 </div>
               )}
             </div>
-
             <div className="mt-4 text-sm text-gray-600">
               <p>• This preview shows how the welcome screen will appear</p>
               <p>• Click "Fullscreen" to display on external monitor</p>
