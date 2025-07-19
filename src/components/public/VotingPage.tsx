@@ -79,43 +79,46 @@ export default function VotingPage() {
   }, [sessionId, attendee])
 
   const fetchSession = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('voting_sessions')
-        .select(`
+  try {
+    const { data, error } = await supabase
+      .from('voting_sessions')
+      .select(`
+        id,
+        title,
+        description,
+        event:events(
           id,
-          title,
-          description,
-          event:events(
-            id,
-            name,
-            company:companies(name)
-          )
-        `)
-        .eq('id', sessionId)
-        .eq('is_active', true)
-        .single()
+          name,
+          company:companies(name)
+        )
+      `)
+      .eq('id', sessionId)
+      .eq('is_active', true)
+      .single()
 
-      if (error || !data) throw error
+    if (error || !data) throw error
 
-      // transform event.company array to single object
-      const cleanedSession: VotingSession = {
-        ...data,
-        event: {
-          ...data.event,
-          company: Array.isArray(data.event.company)
-            ? data.event.company[0]
-            : data.event.company
-        }
+    const cleanedSession: VotingSession = {
+      id: data.id,
+      title: data.title,
+      description: data.description,
+      event: {
+        id: data.event[0]?.id,
+        name: data.event[0]?.name,
+        company: Array.isArray(data.event[0]?.company)
+          ? data.event[0].company[0]
+          : data.event[0]?.company
       }
-
-      setSession(cleanedSession)
-    } catch (error: any) {
-      toast.error('Voting session not found or not active')
-    } finally {
-      setLoading(false)
     }
+
+    setSession(cleanedSession)
+  } catch (error: any) {
+    toast.error('Voting session not found or not active')
+  } finally {
+    setLoading(false)
   }
+}
+
 
   const fetchPhotosWithVotes = async () => {
     if (!attendee) return
