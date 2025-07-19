@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
+/* import React, { useState, useEffect } from 'react' */
+ import { useState, useEffect, useRef } from 'react' 
 import { QrCode, UserCheck, Users, CheckCircle, Camera } from 'lucide-react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { supabase } from '../../lib/supabase'
