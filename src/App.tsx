@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Upload, Image, Camera, CheckCircle } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -13,11 +13,7 @@ interface Event {
   }
 }
 
-interface GalleryUploadProps {
-  userCompany?: any
-}
-
-export default function GalleryUpload({ userCompany }: GalleryUploadProps) {
+export default function GalleryUpload() {
   const { eventId } = useParams()
   const [event, setEvent] = useState<Event | null>(null)
   const [uploading, setUploading] = useState(false)
