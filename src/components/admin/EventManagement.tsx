@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+/* import React, { useState, useEffect } from 'react' */
+ import { useState, useEffect } from 'react' 
 import { Plus, Calendar, MapPin, Users, Edit, Trash2, ExternalLink, QrCode } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
