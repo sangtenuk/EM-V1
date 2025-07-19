@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Monitor, Users, Settings, Maximize } from 'lucide-react'
+import { Monitor, Users, Settings, Maximize, Palette } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -29,7 +29,9 @@ export default function WelcomeMonitor() {
     autoHide: true,
     hideDelay: 5000,
     backgroundColor: '#1e40af',
-    textColor: '#ffffff'
+    textColor: '#ffffff',
+    title: 'Welcome to the Event',
+    subtitle: 'Waiting for check-ins...'
   })
 
   useEffect(() => {
@@ -125,19 +127,19 @@ export default function WelcomeMonitor() {
             <motion.div
               initial={{ y: 20 }}
               animate={{ y: 0 }}
-              className="mb-8"
+              className="mb-4 md:mb-8"
             >
-              <h1 className="text-6xl md:text-8xl font-bold mb-4">Welcome!</h1>
-              <div className="text-4xl md:text-6xl font-semibold mb-2">
+              <h1 className="text-3xl md:text-6xl lg:text-8xl font-bold mb-2 md:mb-4">Welcome!</h1>
+              <div className="text-2xl md:text-4xl lg:text-6xl font-semibold mb-1 md:mb-2">
                 {latestCheckIn.name}
               </div>
               {settings.showCompany && latestCheckIn.company && (
-                <div className="text-2xl md:text-4xl opacity-80">
+                <div className="text-lg md:text-2xl lg:text-4xl opacity-80">
                   {latestCheckIn.company}
                 </div>
               )}
               {settings.showTime && (
-                <div className="text-xl md:text-2xl opacity-60 mt-4">
+                <div className="text-base md:text-xl lg:text-2xl opacity-60 mt-2 md:mt-4">
                   {new Date(latestCheckIn.check_in_time).toLocaleTimeString()}
                 </div>
               )}
@@ -149,12 +151,12 @@ export default function WelcomeMonitor() {
             animate={{ opacity: 1 }}
             className="text-center"
           >
-            <Users className="h-32 w-32 mx-auto mb-8 opacity-50" />
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">
-              Welcome to the Event
+            <Users className="h-16 w-16 md:h-32 md:w-32 mx-auto mb-4 md:mb-8 opacity-50" />
+            <h1 className="text-2xl md:text-4xl lg:text-6xl font-bold mb-2 md:mb-4 px-4">
+              {settings.title}
             </h1>
-            <p className="text-xl md:text-2xl opacity-80">
-              Waiting for check-ins...
+            <p className="text-lg md:text-xl lg:text-2xl opacity-80 px-4">
+              {settings.subtitle}
             </p>
           </motion.div>
         )}
@@ -168,7 +170,7 @@ export default function WelcomeMonitor() {
         <MonitorDisplay />
         <button
           onClick={toggleFullscreen}
-          className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors"
+          className="absolute top-2 right-2 md:top-4 md:right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors text-sm md:text-base"
         >
           Exit Fullscreen
         </button>
@@ -189,7 +191,8 @@ export default function WelcomeMonitor() {
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Maximize className="h-5 w-5 mr-2" />
-          Fullscreen
+          <span className="hidden md:inline">Fullscreen</span>
+          <span className="md:hidden">Monitor</span>
         </button>
       </div>
 
@@ -218,6 +221,32 @@ export default function WelcomeMonitor() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Welcome Title
+              </label>
+              <input
+                type="text"
+                value={settings.title}
+                onChange={(e) => setSettings({ ...settings, title: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Welcome to the Event"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Subtitle
+              </label>
+              <input
+                type="text"
+                value={settings.subtitle}
+                onChange={(e) => setSettings({ ...settings, subtitle: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Waiting for check-ins..."
+              />
             </div>
 
             <div className="space-y-3">
@@ -272,24 +301,79 @@ export default function WelcomeMonitor() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Background Color
               </label>
-              <input
-                type="color"
-                value={settings.backgroundColor}
-                onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
-                className="w-full h-10 border border-gray-300 rounded-md"
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="color"
+                  value={settings.backgroundColor}
+                  onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                  className="w-12 h-10 border border-gray-300 rounded-md"
+                />
+                <input
+                  type="text"
+                  value={settings.backgroundColor}
+                  onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="#1e40af"
+                />
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Text Color
               </label>
-              <input
-                type="color"
-                value={settings.textColor}
-                onChange={(e) => setSettings({ ...settings, textColor: e.target.value })}
-                className="w-full h-10 border border-gray-300 rounded-md"
-              />
+              <div className="flex space-x-2">
+                <input
+                  type="color"
+                  value={settings.textColor}
+                  onChange={(e) => setSettings({ ...settings, textColor: e.target.value })}
+                  className="w-12 h-10 border border-gray-300 rounded-md"
+                />
+                <input
+                  type="text"
+                  value={settings.textColor}
+                  onChange={(e) => setSettings({ ...settings, textColor: e.target.value })}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="#ffffff"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t">
+              <h3 className="font-medium mb-2 flex items-center">
+                <Palette className="h-4 w-4 mr-2" />
+                Quick Themes
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setSettings({ ...settings, backgroundColor: '#1e40af', textColor: '#ffffff' })}
+                  className="p-2 rounded text-white text-xs"
+                  style={{ backgroundColor: '#1e40af' }}
+                >
+                  Blue
+                </button>
+                <button
+                  onClick={() => setSettings({ ...settings, backgroundColor: '#7c3aed', textColor: '#ffffff' })}
+                  className="p-2 rounded text-white text-xs"
+                  style={{ backgroundColor: '#7c3aed' }}
+                >
+                  Purple
+                </button>
+                <button
+                  onClick={() => setSettings({ ...settings, backgroundColor: '#059669', textColor: '#ffffff' })}
+                  className="p-2 rounded text-white text-xs"
+                  style={{ backgroundColor: '#059669' }}
+                >
+                  Green
+                </button>
+                <button
+                  onClick={() => setSettings({ ...settings, backgroundColor: '#dc2626', textColor: '#ffffff' })}
+                  className="p-2 rounded text-white text-xs"
+                  style={{ backgroundColor: '#dc2626' }}
+                >
+                  Red
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -315,10 +399,11 @@ export default function WelcomeMonitor() {
               )}
             </div>
 
-            <div className="mt-4 text-sm text-gray-600">
+            <div className="mt-4 text-sm text-gray-600 space-y-1">
               <p>• This preview shows how the welcome screen will appear</p>
               <p>• Click "Fullscreen" to display on external monitor</p>
               <p>• New check-ins will automatically appear in real-time</p>
+              <p>• Customize title, colors, and display options in settings</p>
             </div>
           </div>
         </div>

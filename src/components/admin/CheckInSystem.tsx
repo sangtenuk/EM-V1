@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { QrCode, UserCheck, Users, CheckCircle, Camera } from 'lucide-react'
+import { QrCode, UserCheck, Users, CheckCircle, Camera, Settings, Palette } from 'lucide-react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
@@ -37,6 +37,14 @@ export default function CheckInSystem() {
   const [stats, setStats] = useState({ total: 0, checkedIn: 0 })
   const scannerRef = useRef<Html5QrcodeScanner | null>(null)
   const [eventQR, setEventQR] = useState('')
+  const [settings, setSettings] = useState({
+    title: 'Check-In System',
+    subtitle: 'Scan QR codes to check in attendees',
+    backgroundColor: '#2563eb',
+    textColor: '#ffffff',
+    showStats: true,
+    showEventName: true
+  })
 
   useEffect(() => {
     fetchEvents()
@@ -322,15 +330,15 @@ export default function CheckInSystem() {
     <div>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Check-In System</h1>
-          <p className="text-gray-600 mt-2">Scan QR codes to check in attendees</p>
+          <h1 className="text-3xl font-bold text-gray-900">{settings.title}</h1>
+          <p className="text-gray-600 mt-2">{settings.subtitle}</p>
         </div>
       </div>
 
       {/* Event Selection */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Event
             </label>
@@ -350,12 +358,15 @@ export default function CheckInSystem() {
           
           {selectedEventId && (
             <div className="flex items-end">
-              <div className="bg-blue-50 rounded-lg p-4 w-full">
-                <div className="text-sm text-blue-600 font-medium">Check-in Progress</div>
-                <div className="text-2xl font-bold text-blue-900">
+              <div 
+                className="rounded-lg p-4 w-full text-white"
+                style={{ backgroundColor: settings.backgroundColor }}
+              >
+                <div className="text-sm font-medium opacity-90">Check-in Progress</div>
+                <div className="text-2xl font-bold">
                   {stats.checkedIn} / {stats.total}
                 </div>
-                <div className="text-sm text-blue-600">
+                <div className="text-sm opacity-80">
                   {stats.total > 0 ? Math.round((stats.checkedIn / stats.total) * 100) : 0}% complete
                 </div>
               </div>
@@ -365,7 +376,116 @@ export default function CheckInSystem() {
       </div>
 
       {selectedEventId && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          {/* Settings Panel */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <Settings className="h-6 w-6 mr-2" />
+              Display Settings
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={settings.title}
+                  onChange={(e) => setSettings({ ...settings, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Check-In System"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Subtitle
+                </label>
+                <input
+                  type="text"
+                  value={settings.subtitle}
+                  onChange={(e) => setSettings({ ...settings, subtitle: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Scan QR codes to check in attendees"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Theme Color
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="color"
+                    value={settings.backgroundColor}
+                    onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                    className="w-12 h-10 border border-gray-300 rounded-md"
+                  />
+                  <input
+                    type="text"
+                    value={settings.backgroundColor}
+                    onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="#2563eb"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={settings.showStats}
+                    onChange={(e) => setSettings({ ...settings, showStats: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Show Statistics</span>
+                </label>
+
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={settings.showEventName}
+                    onChange={(e) => setSettings({ ...settings, showEventName: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Show Event Name</span>
+                </label>
+              </div>
+
+              <div className="pt-4 border-t">
+                <h3 className="font-medium mb-2 flex items-center">
+                  <Palette className="h-4 w-4 mr-2" />
+                  Quick Themes
+                </h3>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={() => setSettings({ ...settings, backgroundColor: '#2563eb' })}
+                    className="p-2 rounded text-white text-xs"
+                    style={{ backgroundColor: '#2563eb' }}
+                  >
+                    Blue
+                  </button>
+                  <button
+                    onClick={() => setSettings({ ...settings, backgroundColor: '#059669' })}
+                    className="p-2 rounded text-white text-xs"
+                    style={{ backgroundColor: '#059669' }}
+                  >
+                    Green
+                  </button>
+                  <button
+                    onClick={() => setSettings({ ...settings, backgroundColor: '#7c3aed' })}
+                    className="p-2 rounded text-white text-xs"
+                    style={{ backgroundColor: '#7c3aed' }}
+                  >
+                    Purple
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* QR Scanner */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4 flex items-center">
@@ -378,7 +498,8 @@ export default function CheckInSystem() {
                 <div>
                   <button
                     onClick={startScanner}
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                    className="w-full text-white py-3 px-4 rounded-lg hover:opacity-90 transition-colors flex items-center justify-center"
+                    style={{ backgroundColor: settings.backgroundColor }}
                   >
                     <Camera className="h-5 w-5 mr-2" />
                     Start Camera Scanner
@@ -412,7 +533,7 @@ export default function CheckInSystem() {
                   />
                   <button
                     type="submit"
-                    className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+                    className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center text-sm md:text-base"
                   >
                     <UserCheck className="h-4 w-4 mr-2" />
                     Check In
@@ -434,7 +555,7 @@ export default function CheckInSystem() {
                 <img 
                   src={eventQR} 
                   alt="Event QR Code" 
-                  className="w-48 h-48 mx-auto border border-gray-200 rounded-lg mb-3"
+                  className="w-32 h-32 md:w-48 md:h-48 mx-auto border border-gray-200 rounded-lg mb-3"
                 />
                 <p className="text-sm text-gray-600 mb-2">
                   Event Check-in QR Code
@@ -447,21 +568,21 @@ export default function CheckInSystem() {
           )}
 
           {/* Recent Check-ins */}
-          <div className="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
+          <div className="bg-white rounded-lg shadow-md p-6 xl:col-span-4">
             <h2 className="text-xl font-semibold mb-4 flex items-center">
               <Users className="h-6 w-6 mr-2" />
               Recent Check-ins
             </h2>
             
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
               {recentCheckIns.map((attendee) => (
-                <div key={attendee.id} className="flex items-center p-3 bg-green-50 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-green-600 mr-3" />
+                <div key={attendee.id} className="flex items-center p-3 bg-green-50 rounded-lg min-w-0">
+                  <CheckCircle className="h-5 w-5 text-green-600 mr-3 flex-shrink-0" />
                   <div className="flex-1">
-                    <div className="font-medium text-gray-900">{attendee.name}</div>
-                    <div className="text-sm text-gray-600">ID: {attendee.identification_number}</div>
+                    <div className="font-medium text-gray-900 truncate">{attendee.name}</div>
+                    <div className="text-sm text-gray-600 truncate">ID: {attendee.identification_number}</div>
                     {attendee.staff_id && (
-                      <div className="text-sm text-gray-600">Staff: {attendee.staff_id}</div>
+                      <div className="text-sm text-gray-600 truncate">Staff: {attendee.staff_id}</div>
                     )}
                     <div className="text-xs text-gray-500">
                       {new Date(attendee.check_in_time).toLocaleTimeString()}
@@ -471,7 +592,7 @@ export default function CheckInSystem() {
               ))}
               
               {recentCheckIns.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500 md:col-span-2 lg:col-span-3 xl:col-span-4">
                   <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p>No check-ins yet</p>
                 </div>

@@ -78,13 +78,13 @@ export default function Ticket() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-8 text-center">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 md:px-6 py-6 md:py-8 text-center">
             <QrCode className="h-12 w-12 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold">Event Ticket</h1>
+            <h1 className="text-xl md:text-2xl font-bold">Event Ticket</h1>
             {attendee.checked_in && (
               <div className="mt-4 flex items-center justify-center text-green-200">
                 <CheckCircle className="h-5 w-5 mr-2" />
@@ -94,8 +94,8 @@ export default function Ticket() {
           </div>
 
           {/* Event Info */}
-          <div className="px-6 py-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900 mb-3">{attendee.event.name}</h2>
+          <div className="px-4 md:px-6 py-6 border-b border-gray-200">
+            <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-3">{attendee.event.name}</h2>
             {attendee.event.description && (
               <p className="text-gray-600 mb-4">{attendee.event.description}</p>
             )}
@@ -125,7 +125,7 @@ export default function Ticket() {
           </div>
 
           {/* Attendee Info */}
-          <div className="px-6 py-6 border-b border-gray-200">
+          <div className="px-4 md:px-6 py-6 border-b border-gray-200">
             <h3 className="font-semibold text-gray-900 mb-3">Attendee Information</h3>
             <div className="space-y-2 text-sm text-gray-600">
               <div><strong>Name:</strong> {attendee.name}</div>
@@ -137,14 +137,14 @@ export default function Ticket() {
           </div>
 
           {/* QR Code */}
-          <div className="px-6 py-8 text-center">
+          <div className="px-4 md:px-6 py-6 md:py-8 text-center">
             <h3 className="font-semibold text-gray-900 mb-4">Check-in QR Code</h3>
             {attendee.qr_code && (
               <div className="flex justify-center">
                 <img 
                   src={attendee.qr_code} 
                   alt="QR Code for check-in" 
-                  className="w-48 h-48 border border-gray-200 rounded-lg"
+                  className="w-40 h-40 md:w-48 md:h-48 border border-gray-200 rounded-lg"
                 />
               </div>
             )}
@@ -154,7 +154,7 @@ export default function Ticket() {
           </div>
 
           {attendee.checked_in && attendee.check_in_time && (
-            <div className="bg-green-50 px-6 py-4">
+            <div className="bg-green-50 px-4 md:px-6 py-4">
               <div className="flex items-center justify-center text-green-800">
                 <CheckCircle className="h-5 w-5 mr-2" />
                 <span className="text-sm font-medium">

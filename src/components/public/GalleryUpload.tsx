@@ -140,19 +140,19 @@ export default function GalleryUpload() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-blue-600 text-white px-6 py-8 text-center">
+          <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
             <Camera className="h-12 w-12 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold mb-2">Share Your Photo</h1>
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
             <p className="text-blue-100">{event.name}</p>
             <p className="text-blue-200 text-sm">{event.company.name}</p>
           </div>
 
           {/* Upload Form */}
-          <div className="px-6 py-8">
+          <div className="px-4 md:px-6 py-6 md:py-8">
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -171,13 +171,13 @@ export default function GalleryUpload() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Photo
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 md:p-6 text-center hover:border-blue-400 transition-colors">
                   {previewUrl ? (
                     <div className="space-y-4">
                       <img
                         src={previewUrl}
                         alt="Preview"
-                        className="max-w-full h-64 object-contain mx-auto rounded-lg"
+                        className="max-w-full h-48 md:h-64 object-contain mx-auto rounded-lg"
                       />
                       <button
                         onClick={() => {
@@ -216,7 +216,7 @@ export default function GalleryUpload() {
                 <button
                   onClick={uploadPhoto}
                   disabled={uploading}
-                  className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50"
+                  className="w-full bg-green-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 text-sm md:text-base"
                 >
                   <Upload className="h-5 w-5 mr-2" />
                   {uploading ? 'Uploading...' : 'Upload Photo'}

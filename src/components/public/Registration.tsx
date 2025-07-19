@@ -118,12 +118,12 @@ export default function Registration() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           {/* Event Header */}
-          <div className="bg-blue-600 text-white px-6 py-8">
-            <h1 className="text-3xl font-bold mb-4">{event.name}</h1>
+          <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8">
+            <h1 className="text-2xl md:text-3xl font-bold mb-4">{event.name}</h1>
             {event.description && (
               <p className="text-blue-100 mb-4">{event.description}</p>
             )}
@@ -131,7 +131,7 @@ export default function Registration() {
               {event.date && (
                 <div className="flex items-center text-blue-100">
                   <Calendar className="h-5 w-5 mr-2" />
-                  <span>{new Date(event.date).toLocaleDateString('en-US', {
+                  <span className="text-sm md:text-base">{new Date(event.date).toLocaleDateString('en-US', {
                     weekday: 'long',
                     year: 'numeric',
                     month: 'long',
@@ -144,15 +144,15 @@ export default function Registration() {
               {event.location && (
                 <div className="flex items-center text-blue-100">
                   <MapPin className="h-5 w-5 mr-2" />
-                  <span>{event.location}</span>
+                  <span className="text-sm md:text-base">{event.location}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* Registration Form */}
-          <div className="px-6 py-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Register for Event</h2>
+          <div className="px-4 md:px-6 py-6 md:py-8">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Register for Event</h2>
             
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
@@ -230,7 +230,7 @@ export default function Registration() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 font-medium"
+                className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 font-medium text-sm md:text-base"
               >
                 {submitting ? 'Registering...' : 'Register Now'}
               </button>

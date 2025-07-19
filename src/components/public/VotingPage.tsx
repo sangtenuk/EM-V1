@@ -261,13 +261,13 @@ export default function VotingPage() {
 
   if (showLogin) {
     return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-lg shadow-lg p-8">
+          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8">
             <div className="text-center mb-8">
               <Vote className="h-16 w-16 text-purple-600 mx-auto mb-4" />
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Join Voting</h1>
-              <h2 className="text-xl text-purple-600 mb-2">{session.title}</h2>
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Join Voting</h1>
+              <h2 className="text-lg md:text-xl text-purple-600 mb-2">{session.title}</h2>
               <p className="text-gray-600">{session.event.name}</p>
               <p className="text-sm text-gray-500">{session.event.company.name}</p>
             </div>
@@ -308,18 +308,18 @@ export default function VotingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-lg p-4 md:p-6 mb-6">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{session.title}</h1>
-            <p className="text-lg text-purple-600 mb-2">{session.event.name}</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{session.title}</h1>
+            <p className="text-base md:text-lg text-purple-600 mb-2">{session.event.name}</p>
             <p className="text-gray-600">{session.event.company.name}</p>
             {session.description && (
               <p className="text-gray-600 mt-2">{session.description}</p>
             )}
-            <div className="mt-4 flex items-center justify-center space-x-4 text-sm text-gray-500">
+            <div className="mt-4 flex flex-col md:flex-row items-center justify-center space-y-2 md:space-y-0 md:space-x-4 text-sm text-gray-500">
               <div className="flex items-center">
                 <Users className="h-4 w-4 mr-1" />
                 <span>Welcome, {attendee?.name}</span>
@@ -355,22 +355,22 @@ export default function VotingPage() {
         )}
 
         {/* Photos Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {photos.map((photo) => (
             <div key={photo.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
               <img
                 src={photo.photo_url}
                 alt={photo.title}
-                className="w-full h-64 object-cover"
+                className="w-full h-48 md:h-64 object-cover"
               />
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">{photo.title}</h3>
+              <div className="p-4 md:p-6">
+                <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-4">{photo.title}</h3>
                 
                 {!hasVoted ? (
                   <button
                     onClick={() => handleVote(photo.id)}
                     disabled={voting}
-                    className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center"
+                    className="w-full bg-purple-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center text-sm md:text-base"
                   >
                     <Vote className="h-5 w-5 mr-2" />
                     {voting ? 'Voting...' : 'Vote for This'}
@@ -383,9 +383,9 @@ export default function VotingPage() {
                         {photo.vote_count} ({photo.vote_percentage.toFixed(1)}%)
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="w-full bg-gray-200 rounded-full h-2 md:h-3">
                       <div
-                        className={`h-3 rounded-full transition-all duration-500 ${
+                        className={`h-2 md:h-3 rounded-full transition-all duration-500 ${
                           photo.user_voted ? 'bg-green-500' : 'bg-purple-500'
                         }`}
                         style={{ width: `${photo.vote_percentage}%` }}
@@ -399,7 +399,7 @@ export default function VotingPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-3 text-gray-500">
+                  <div className="text-center py-2 md:py-3 text-gray-500">
                     <CheckCircle className="h-8 w-8 mx-auto mb-2" />
                     <p>Vote cast successfully!</p>
                   </div>
