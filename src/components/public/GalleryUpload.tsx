@@ -1,5 +1,4 @@
-/* import React, { useState, useEffect } from 'react' */
- import { useState, useEffect } from 'react' 
+import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Upload, Image, Camera, CheckCircle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -43,7 +42,15 @@ export default function GalleryUpload() {
         .single()
 
       if (error) throw error
-      setEvent(data)
+
+      const normalizedEvent = {
+        ...data,
+        company: Array.isArray(data.company)
+          ? data.company[0] ?? { name: '' }
+          : data.company
+      }
+
+      setEvent(normalizedEvent)
     } catch (error: any) {
       toast.error('Event not found')
     }
@@ -52,11 +59,11 @@ export default function GalleryUpload() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      if (file.size > 10 * 1024 * 1024) {
         toast.error('File size must be less than 10MB')
         return
       }
-      
+
       if (!file.type.startsWith('image/')) {
         toast.error('Please select an image file')
         return
@@ -74,7 +81,6 @@ export default function GalleryUpload() {
     setUploading(true)
 
     try {
-      // Convert file to base64 for storage (in a real app, you'd use proper file storage)
       const reader = new FileReader()
       reader.onload = async (e) => {
         const photoUrl = e.target?.result as string
@@ -144,7 +150,6 @@ export default function GalleryUpload() {
     <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          {/* Header */}
           <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
             <Camera className="h-12 w-12 mx-auto mb-4" />
             <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
@@ -152,7 +157,6 @@ export default function GalleryUpload() {
             <p className="text-blue-200 text-sm">{event.company.name}</p>
           </div>
 
-          {/* Upload Form */}
           <div className="px-4 md:px-6 py-6 md:py-8">
             <div className="space-y-6">
               <div>
