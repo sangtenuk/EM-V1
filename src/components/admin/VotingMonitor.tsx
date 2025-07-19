@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Monitor, Vote, Trophy, Users, BarChart3 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { motion, AnimatePresence } from 'framer-motion'
 
 interface VotingSession {
   id: string
@@ -24,7 +22,6 @@ interface VotingPhoto {
 }
 
 export default function VotingMonitor() {
-  const [votingSessions, setVotingSessions] = useState<VotingSession[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState('')
   const [photos, setPhotos] = useState<VotingPhoto[]>([])
   const [totalVotes, setTotalVotes] = useState(0)
@@ -96,7 +93,9 @@ export default function VotingMonitor() {
         }
       }))
 
-      setVotingSessions(normalized)
+      if (normalized.length > 0) {
+        setSelectedSessionId(normalized[0].id)
+      }
     } catch (error: any) {
       console.error('Error fetching voting sessions:', error)
     }
@@ -150,10 +149,5 @@ export default function VotingMonitor() {
     setIsFullscreen(!isFullscreen)
   }
 
-  const MonitorDisplay = () => (
-    // ... (no change to JSX needed)
-    <></>
-  )
-
-  return <></> // (return remains unchanged)
+  return <></> // Replace with real display
 }
