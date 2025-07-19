@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Monitor, Vote, Trophy, Users, BarChart3, Settings, Palette } from 'lucide-react'
+import { Monitor, Vote, Trophy, Users, BarChart3, Settings, Palette, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -32,7 +32,9 @@ export default function VotingMonitor() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
   const [settings, setSettings] = useState({
     title: 'Live Voting Results',
+    backgroundType: 'color' as 'color' | 'image',
     backgroundColor: '#7c3aed',
+    backgroundImage: '',
     textColor: '#ffffff',
     showEventName: true,
     showTotalVotes: true
@@ -152,14 +154,54 @@ export default function VotingMonitor() {
     setIsFullscreen(!isFullscreen)
   }
 
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Background image must be less than 5MB')
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    try {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const imageUrl = event.target?.result as string
+        setSettings({ 
+          ...settings, 
+          backgroundType: 'image',
+          backgroundImage: imageUrl 
+        })
+      }
+      reader.readAsDataURL(file)
+    } catch (error: any) {
+      toast.error('Error uploading background: ' + error.message)
+    }
+  }
+
   const MonitorDisplay = () => (
     <div 
       className="h-full text-white relative overflow-hidden"
       style={{ 
-        background: `linear-gradient(135deg, ${settings.backgroundColor}, ${settings.backgroundColor}dd)`,
+        background: settings.backgroundType === 'image' && settings.backgroundImage
+          ? `url(${settings.backgroundImage})`
+          : `linear-gradient(135deg, ${settings.backgroundColor}, ${settings.backgroundColor}dd)`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
         color: settings.textColor 
       }}
     >
+      {/* Overlay for better text readability when using background images */}
+      {settings.backgroundType === 'image' && settings.backgroundImage && (
+        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+      )}
+      
       {/* Background Animation */}
       <div className="absolute inset-0">
         {[...Array(15)].map((_, i) => (
@@ -388,6 +430,102 @@ export default function VotingMonitor() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                Background Type
+              </label>
+              <div className="flex space-x-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="backgroundType"
+                    value="color"
+                    checked={settings.backgroundType === 'color'}
+                    onChange={(e) => setSettings({ ...settings, backgroundType: e.target.value as 'color' | 'image' })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Solid Color</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="backgroundType"
+                    value="image"
+                    checked={settings.backgroundType === 'image'}
+                    onChange={(e) => setSettings({ ...settings, backgroundType: e.target.value as 'color' | 'image' })}
+                    className="mr-2"
+                  />
+                  <span className="text-sm">Custom Image</span>
+                </label>
+              </div>
+            </div>
+
+            {settings.backgroundType === 'color' ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Background Color
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="color"
+                    value={settings.backgroundColor}
+                    onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                    className="w-12 h-10 border border-gray-300 rounded-md"
+                  />
+                  <input
+                    type="text"
+                    value={settings.backgroundColor}
+                    onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="#7c3aed"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Background Image
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  {settings.backgroundImage ? (
+                    <div className="space-y-2">
+                      <img
+                        src={settings.backgroundImage}
+                        alt="Background Preview"
+                        className="max-w-full h-20 object-cover mx-auto rounded"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSettings({ ...settings, backgroundImage: '' })}
+                        className="text-blue-600 hover:text-blue-700 text-sm"
+                      >
+                        Remove Background
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-600 mb-2">Upload background image</p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBackgroundUpload}
+                        className="hidden"
+                        id="background-upload"
+                      />
+                      <label
+                        htmlFor="background-upload"
+                        className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm"
+                      >
+                        Select Image
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1">Max 5MB, JPG/PNG</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Custom Title
               </label>
               <input
@@ -397,27 +535,6 @@ export default function VotingMonitor() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 placeholder="Enter custom title"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Background Color
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="color"
-                  value={settings.backgroundColor}
-                  onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
-                  className="w-12 h-10 border border-gray-300 rounded-md"
-                />
-                <input
-                  type="text"
-                  value={settings.backgroundColor}
-                  onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="#7c3aed"
-                />
-              </div>
             </div>
 
             <div>
@@ -470,28 +587,28 @@ export default function VotingMonitor() {
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#7c3aed', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#7c3aed', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#7c3aed' }}
                 >
                   Purple
                 </button>
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#2563eb', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#2563eb', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#2563eb' }}
                 >
                   Blue
                 </button>
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#dc2626', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#dc2626', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#dc2626' }}
                 >
                   Red
                 </button>
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#059669', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#059669', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#059669' }}
                 >

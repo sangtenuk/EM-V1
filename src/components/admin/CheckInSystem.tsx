@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { QrCode, UserCheck, Users, CheckCircle, Camera, Settings, Palette } from 'lucide-react'
+import { QrCode, UserCheck, Users, CheckCircle, Camera, Settings, Palette, Upload } from 'lucide-react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'

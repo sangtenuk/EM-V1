@@ -28,7 +28,9 @@ export default function WelcomeMonitor() {
     showTime: true,
     autoHide: true,
     hideDelay: 5000,
+    backgroundType: 'color' as 'color' | 'image',
     backgroundColor: '#1e40af',
+    backgroundImage: '',
     textColor: '#ffffff',
     title: 'Welcome to the Event',
     subtitle: 'Waiting for check-ins...'
@@ -107,14 +109,54 @@ export default function WelcomeMonitor() {
     setIsFullscreen(!isFullscreen)
   }
 
+  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Background image must be less than 5MB')
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    try {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const imageUrl = event.target?.result as string
+        setSettings({ 
+          ...settings, 
+          backgroundType: 'image',
+          backgroundImage: imageUrl 
+        })
+      }
+      reader.readAsDataURL(file)
+    } catch (error: any) {
+      toast.error('Error uploading background: ' + error.message)
+    }
+  }
+
   const MonitorDisplay = () => (
     <div 
       className="h-full flex items-center justify-center relative"
       style={{ 
-        backgroundColor: settings.backgroundColor,
+        background: settings.backgroundType === 'image' && settings.backgroundImage
+          ? `url(${settings.backgroundImage})`
+          : settings.backgroundColor,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
         color: settings.textColor 
       }}
     >
+      {/* Overlay for better text readability when using background images */}
+      {settings.backgroundType === 'image' && settings.backgroundImage && (
+        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+      )}
+      
       <AnimatePresence>
         {latestCheckIn ? (
           <motion.div
@@ -284,25 +326,100 @@ export default function WelcomeMonitor() {
             {settings.autoHide && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Hide Delay (seconds)
+                  Background Type
                 </label>
-                <input
-                  type="number"
-                  value={settings.hideDelay / 1000}
-                  onChange={(e) => setSettings({ ...settings, hideDelay: parseInt(e.target.value) * 1000 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="1"
-                  max="30"
-                />
+                <div className="flex space-x-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="backgroundType"
+                      value="color"
+                      checked={settings.backgroundType === 'color'}
+                      onChange={(e) => setSettings({ ...settings, backgroundType: e.target.value as 'color' | 'image' })}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Solid Color</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="backgroundType"
+                      value="image"
+                      checked={settings.backgroundType === 'image'}
+                      onChange={(e) => setSettings({ ...settings, backgroundType: e.target.value as 'color' | 'image' })}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Custom Image</span>
+                  </label>
+                </div>
               </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Background Color
-              </label>
-              <div className="flex space-x-2">
-                <input
+              {settings.backgroundType === 'color' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Background Color
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="color"
+                      value={settings.backgroundColor}
+                      onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                      className="w-12 h-10 border border-gray-300 rounded-md"
+                    />
+                    <input
+                      type="text"
+                      value={settings.backgroundColor}
+                      onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="#1e40af"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Background Image
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                    {settings.backgroundImage ? (
+                      <div className="space-y-2">
+                        <img
+                          src={settings.backgroundImage}
+                          alt="Background Preview"
+                          className="max-w-full h-20 object-cover mx-auto rounded"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSettings({ ...settings, backgroundImage: '' })}
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          Remove Background
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-600 mb-2">Upload background image</p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleBackgroundUpload}
+                          className="hidden"
+                          id="background-upload"
+                        />
+                        <label
+                          htmlFor="background-upload"
+                          className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm"
+                        >
+                          Select Image
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">Max 5MB, JPG/PNG</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
                   type="color"
                   value={settings.backgroundColor}
                   onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
@@ -346,28 +463,28 @@ export default function WelcomeMonitor() {
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#1e40af', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#1e40af', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#1e40af' }}
                 >
                   Blue
                 </button>
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#7c3aed', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#7c3aed', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#7c3aed' }}
                 >
                   Purple
                 </button>
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#059669', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#059669', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#059669' }}
                 >
                   Green
                 </button>
                 <button
-                  onClick={() => setSettings({ ...settings, backgroundColor: '#dc2626', textColor: '#ffffff' })}
+                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#dc2626', textColor: '#ffffff' })}
                   className="p-2 rounded text-white text-xs"
                   style={{ backgroundColor: '#dc2626' }}
                 >
