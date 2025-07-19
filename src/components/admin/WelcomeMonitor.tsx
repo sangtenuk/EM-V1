@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+/* import React, { useState, useEffect } from 'react' */
+ import { useState, useEffect } from 'react' 
 import { Monitor, Users, Settings, Maximize } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
