@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Monitor, Vote, Trophy, Users, BarChart3, Settings, Palette, Upload } from 'lucide-react'
+import { Monitor, Vote, Trophy, Users, BarChart3 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -30,15 +30,6 @@ export default function VotingMonitor() {
   const [totalVotes, setTotalVotes] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
-  const [settings, setSettings] = useState({
-    title: 'Live Voting Results',
-    backgroundType: 'color' as 'color' | 'image',
-    backgroundColor: '#7c3aed',
-    backgroundImage: '',
-    textColor: '#ffffff',
-    showEventName: true,
-    showTotalVotes: true
-  })
 
   useEffect(() => {
     fetchActiveSessions()
@@ -154,54 +145,8 @@ export default function VotingMonitor() {
     setIsFullscreen(!isFullscreen)
   }
 
-  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Background image must be less than 5MB')
-      return
-    }
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file')
-      return
-    }
-
-    try {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const imageUrl = event.target?.result as string
-        setSettings({ 
-          ...settings, 
-          backgroundType: 'image',
-          backgroundImage: imageUrl 
-        })
-      }
-      reader.readAsDataURL(file)
-    } catch (error: any) {
-      toast.error('Error uploading background: ' + error.message)
-    }
-  }
-
   const MonitorDisplay = () => (
-    <div 
-      className="h-full text-white relative overflow-hidden"
-      style={{ 
-        background: settings.backgroundType === 'image' && settings.backgroundImage
-          ? `url(${settings.backgroundImage})`
-          : `linear-gradient(135deg, ${settings.backgroundColor}, ${settings.backgroundColor}dd)`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        color: settings.textColor 
-      }}
-    >
-      {/* Overlay for better text readability when using background images */}
-      {settings.backgroundType === 'image' && settings.backgroundImage && (
-        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
-      )}
-      
+    <div className="h-full bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 text-white relative overflow-hidden">
       {/* Background Animation */}
       <div className="absolute inset-0">
         {[...Array(15)].map((_, i) => (
@@ -228,30 +173,28 @@ export default function VotingMonitor() {
 
       <div className="relative z-10 h-full flex flex-col">
         {/* Header */}
-        <div className="text-center py-4 md:py-8 px-4">
+        <div className="text-center py-8">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-2"
           >
-            <h1 className="text-2xl md:text-4xl lg:text-6xl font-bold">{settings.title}</h1>
-            {selectedSessionId && settings.showEventName && (
+            <h1 className="text-4xl md:text-6xl font-bold">Live Voting Results</h1>
+            {selectedSessionId && (
               <div className="text-xl md:text-2xl opacity-80">
                 {votingSessions.find(s => s.id === selectedSessionId)?.title}
               </div>
             )}
-            {settings.showTotalVotes && (
-              <div className="text-lg md:text-xl opacity-60">
-                Total Votes: {totalVotes}
-              </div>
-            )}
+            <div className="text-lg md:text-xl opacity-60">
+              Total Votes: {totalVotes}
+            </div>
           </motion.div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 px-4 md:px-8 pb-4 md:pb-8">
+        <div className="flex-1 px-8 pb-8">
           {photos.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8 h-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
               {/* Current Photo Display */}
               <div className="flex flex-col">
                 <AnimatePresence mode="wait">
@@ -261,7 +204,7 @@ export default function VotingMonitor() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.8 }}
                     transition={{ duration: 0.5 }}
-                    className="flex-1 bg-white bg-opacity-10 rounded-lg p-3 md:p-6 flex flex-col"
+                    className="flex-1 bg-white bg-opacity-10 rounded-lg p-6 flex flex-col"
                   >
                     <div className="flex-1 flex items-center justify-center">
                       <img
@@ -270,11 +213,11 @@ export default function VotingMonitor() {
                         className="max-w-full max-h-full object-contain rounded-lg"
                       />
                     </div>
-                    <div className="mt-2 md:mt-4 text-center">
-                      <h3 className="text-lg md:text-2xl font-bold mb-1 md:mb-2">
+                    <div className="mt-4 text-center">
+                      <h3 className="text-2xl font-bold mb-2">
                         {photos[currentPhotoIndex]?.title}
                       </h3>
-                      <div className="text-2xl md:text-4xl font-bold text-yellow-300">
+                      <div className="text-4xl font-bold text-yellow-300">
                         {photos[currentPhotoIndex]?.vote_count} votes
                       </div>
                       <div className="text-xl opacity-80">
@@ -286,21 +229,21 @@ export default function VotingMonitor() {
               </div>
 
               {/* Leaderboard */}
-              <div className="bg-white bg-opacity-10 rounded-lg p-3 md:p-6">
-                <h2 className="text-xl md:text-3xl font-bold mb-3 md:mb-6 text-center flex items-center justify-center">
-                  <Trophy className="h-6 w-6 md:h-8 md:w-8 mr-2 md:mr-3 text-yellow-300" />
+              <div className="bg-white bg-opacity-10 rounded-lg p-6">
+                <h2 className="text-3xl font-bold mb-6 text-center flex items-center justify-center">
+                  <Trophy className="h-8 w-8 mr-3 text-yellow-300" />
                   Leaderboard
                 </h2>
-                <div className="space-y-2 md:space-y-4">
+                <div className="space-y-4">
                   {photos.slice(0, 5).map((photo, index) => (
                     <motion.div
                       key={photo.id}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
-                      className="flex items-center space-x-2 md:space-x-4 bg-white bg-opacity-10 rounded-lg p-2 md:p-4"
+                      className="flex items-center space-x-4 bg-white bg-opacity-10 rounded-lg p-4"
                     >
-                      <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-sm md:text-lg ${
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
                         index === 0 ? 'bg-yellow-500' : 
                         index === 1 ? 'bg-gray-400' : 
                         index === 2 ? 'bg-orange-600' : 'bg-blue-500'
@@ -310,13 +253,13 @@ export default function VotingMonitor() {
                       <img
                         src={photo.photo_url}
                         alt={photo.title}
-                        className="w-12 h-12 md:w-16 md:h-16 object-cover rounded-lg"
+                        className="w-16 h-16 object-cover rounded-lg"
                       />
                       <div className="flex-1">
-                        <div className="font-semibold text-sm md:text-lg truncate">{photo.title}</div>
-                        <div className="flex items-center space-x-2 md:space-x-4">
-                          <span className="text-lg md:text-2xl font-bold">{photo.vote_count}</span>
-                          <div className="flex-1 bg-white bg-opacity-20 rounded-full h-2 md:h-3">
+                        <div className="font-semibold text-lg">{photo.title}</div>
+                        <div className="flex items-center space-x-4">
+                          <span className="text-2xl font-bold">{photo.vote_count}</span>
+                          <div className="flex-1 bg-white bg-opacity-20 rounded-full h-3">
                             <motion.div
                               className="bg-yellow-400 h-3 rounded-full"
                               initial={{ width: 0 }}
@@ -324,7 +267,7 @@ export default function VotingMonitor() {
                               transition={{ duration: 1, delay: index * 0.1 }}
                             />
                           </div>
-                          <span className="text-sm md:text-lg font-semibold">
+                          <span className="text-lg font-semibold">
                             {photo.vote_percentage.toFixed(1)}%
                           </span>
                         </div>
@@ -341,9 +284,9 @@ export default function VotingMonitor() {
                 animate={{ opacity: 1 }}
                 className="text-center"
               >
-                <Vote className="h-16 w-16 md:h-32 md:w-32 mx-auto mb-4 md:mb-8 opacity-50" />
-                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4">Waiting for Votes</h2>
-                <p className="text-lg md:text-xl opacity-80">No votes cast yet</p>
+                <Vote className="h-32 w-32 mx-auto mb-8 opacity-50" />
+                <h2 className="text-4xl font-bold mb-4">Waiting for Votes</h2>
+                <p className="text-xl opacity-80">No votes cast yet</p>
               </motion.div>
             </div>
           )}
@@ -358,7 +301,7 @@ export default function VotingMonitor() {
         <MonitorDisplay />
         <button
           onClick={toggleFullscreen}
-          className="absolute top-2 right-2 md:top-4 md:right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors text-sm md:text-base"
+          className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors"
         >
           Exit Fullscreen
         </button>
@@ -373,22 +316,19 @@ export default function VotingMonitor() {
           <h1 className="text-3xl font-bold text-gray-900">Voting Monitor</h1>
           <p className="text-gray-600 mt-2">Display live voting results</p>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={toggleFullscreen}
-            disabled={!selectedSessionId}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Monitor className="h-5 w-5 mr-2" />
-            <span className="hidden md:inline">Fullscreen Monitor</span>
-            <span className="md:hidden">Monitor</span>
-          </button>
-        </div>
+        <button
+          onClick={toggleFullscreen}
+          disabled={!selectedSessionId}
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Monitor className="h-5 w-5 mr-2" />
+          Fullscreen Monitor
+        </button>
       </div>
 
       {/* Session Selection */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Active Voting Session
@@ -419,234 +359,31 @@ export default function VotingMonitor() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Settings Panel */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <Settings className="h-6 w-6 mr-2" />
-            Display Settings
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Background Type
-              </label>
-              <div className="flex space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="backgroundType"
-                    value="color"
-                    checked={settings.backgroundType === 'color'}
-                    onChange={(e) => setSettings({ ...settings, backgroundType: e.target.value as 'color' | 'image' })}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Solid Color</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="backgroundType"
-                    value="image"
-                    checked={settings.backgroundType === 'image'}
-                    onChange={(e) => setSettings({ ...settings, backgroundType: e.target.value as 'color' | 'image' })}
-                    className="mr-2"
-                  />
-                  <span className="text-sm">Custom Image</span>
-                </label>
+      {/* Preview */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-4 flex items-center">
+          <BarChart3 className="h-6 w-6 mr-2" />
+          Monitor Preview
+        </h2>
+        
+        <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+          {selectedSessionId ? (
+            <MonitorDisplay />
+          ) : (
+            <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="text-center">
+                <Vote className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p>Select an active voting session to see preview</p>
               </div>
             </div>
-
-            {settings.backgroundType === 'color' ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Background Color
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="color"
-                    value={settings.backgroundColor}
-                    onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
-                    className="w-12 h-10 border border-gray-300 rounded-md"
-                  />
-                  <input
-                    type="text"
-                    value={settings.backgroundColor}
-                    onChange={(e) => setSettings({ ...settings, backgroundColor: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="#7c3aed"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Background Image
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  {settings.backgroundImage ? (
-                    <div className="space-y-2">
-                      <img
-                        src={settings.backgroundImage}
-                        alt="Background Preview"
-                        className="max-w-full h-20 object-cover mx-auto rounded"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setSettings({ ...settings, backgroundImage: '' })}
-                        className="text-blue-600 hover:text-blue-700 text-sm"
-                      >
-                        Remove Background
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600 mb-2">Upload background image</p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleBackgroundUpload}
-                        className="hidden"
-                        id="background-upload"
-                      />
-                      <label
-                        htmlFor="background-upload"
-                        className="inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer text-sm"
-                      >
-                        Select Image
-                      </label>
-                      <p className="text-xs text-gray-500 mt-1">Max 5MB, JPG/PNG</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Custom Title
-              </label>
-              <input
-                type="text"
-                value={settings.title}
-                onChange={(e) => setSettings({ ...settings, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Enter custom title"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Text Color
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="color"
-                  value={settings.textColor}
-                  onChange={(e) => setSettings({ ...settings, textColor: e.target.value })}
-                  className="w-12 h-10 border border-gray-300 rounded-md"
-                />
-                <input
-                  type="text"
-                  value={settings.textColor}
-                  onChange={(e) => setSettings({ ...settings, textColor: e.target.value })}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="#ffffff"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={settings.showEventName}
-                  onChange={(e) => setSettings({ ...settings, showEventName: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-sm">Show Event Name</span>
-              </label>
-
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={settings.showTotalVotes}
-                  onChange={(e) => setSettings({ ...settings, showTotalVotes: e.target.checked })}
-                  className="mr-2"
-                />
-                <span className="text-sm">Show Total Votes</span>
-              </label>
-            </div>
-
-            <div className="pt-4 border-t">
-              <h3 className="font-medium mb-2 flex items-center">
-                <Palette className="h-4 w-4 mr-2" />
-                Quick Themes
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#7c3aed', textColor: '#ffffff' })}
-                  className="p-2 rounded text-white text-xs"
-                  style={{ backgroundColor: '#7c3aed' }}
-                >
-                  Purple
-                </button>
-                <button
-                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#2563eb', textColor: '#ffffff' })}
-                  className="p-2 rounded text-white text-xs"
-                  style={{ backgroundColor: '#2563eb' }}
-                >
-                  Blue
-                </button>
-                <button
-                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#dc2626', textColor: '#ffffff' })}
-                  className="p-2 rounded text-white text-xs"
-                  style={{ backgroundColor: '#dc2626' }}
-                >
-                  Red
-                </button>
-                <button
-                  onClick={() => setSettings({ ...settings, backgroundType: 'color', backgroundColor: '#059669', textColor: '#ffffff' })}
-                  className="p-2 rounded text-white text-xs"
-                  style={{ backgroundColor: '#059669' }}
-                >
-                  Green
-                </button>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Preview */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <BarChart3 className="h-6 w-6 mr-2" />
-              Monitor Preview
-            </h2>
-            
-            <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-              {selectedSessionId ? (
-                <MonitorDisplay />
-              ) : (
-                <div className="h-full flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <Vote className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p>Select an active voting session to see preview</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 text-sm text-gray-600">
-              <p>• This preview shows how the voting monitor will appear</p>
-              <p>• Click "Fullscreen Monitor" to display on external screen</p>
-              <p>• Results update automatically in real-time</p>
-              <p>• Photos rotate every 5 seconds in fullscreen mode</p>
-            </div>
-          </div>
+        <div className="mt-4 text-sm text-gray-600">
+          <p>• This preview shows how the voting monitor will appear</p>
+          <p>• Click "Fullscreen Monitor" to display on external screen</p>
+          <p>• Results update automatically in real-time</p>
+          <p>• Photos rotate every 5 seconds in fullscreen mode</p>
         </div>
       </div>
     </div>
