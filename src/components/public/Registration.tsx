@@ -17,11 +17,9 @@ interface Event {
 export default function Registration() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -31,7 +29,9 @@ export default function Registration() {
   })
 
   useEffect(() => {
-    if (eventId) fetchEvent()
+    if (eventId) {
+      fetchEvent()
+    }
   }, [eventId])
 
   const fetchEvent = async () => {
@@ -42,7 +42,7 @@ export default function Registration() {
         .eq('id', eventId)
         .single()
 
-      if (error || !data) throw new Error('Event not found')
+      if (error) throw error
       setEvent(data)
     } catch (error: any) {
       toast.error('Event not found')
@@ -54,17 +54,13 @@ export default function Registration() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!event) return
-    if (!formData.name.trim() || !formData.identification_number.trim()) {
-      toast.error('Name and Identification Number are required')
-      return
-    }
+    if (!event || !formData.name.trim() || !formData.identification_number.trim()) return
 
     setSubmitting(true)
 
     try {
       const attendeeId = crypto.randomUUID()
+
       const qrData = `${attendeeId}|${event.id}|${formData.name}`
 
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
@@ -73,7 +69,7 @@ export default function Registration() {
         errorCorrectionLevel: 'L'
       } as any)
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('attendees')
         .insert([{
           id: attendeeId,
@@ -85,8 +81,6 @@ export default function Registration() {
           staff_id: formData.staff_id || null,
           qr_code: qrCodeDataUrl
         }])
-        .select()
-        .single()
 
       if (error) throw error
 
@@ -102,7 +96,7 @@ export default function Registration() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
   }
@@ -122,7 +116,6 @@ export default function Registration() {
     <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          
           {/* Event Header */}
           <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8">
             <h1 className="text-2xl md:text-3xl font-bold mb-4">{event.name}</h1>
@@ -133,16 +126,14 @@ export default function Registration() {
               {event.date && (
                 <div className="flex items-center text-blue-100">
                   <Calendar className="h-5 w-5 mr-2" />
-                  <span className="text-sm md:text-base">
-                    {new Date(event.date).toLocaleString('en-US', {
-                      weekday: 'long',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </span>
+                  <span className="text-sm md:text-base">{new Date(event.date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</span>
                 </div>
               )}
               {event.location && (
@@ -159,30 +150,77 @@ export default function Registration() {
             <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-6">Register for Event</h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {[
-                { label: 'Full Name *', id: 'name', required: true, type: 'text', placeholder: 'Enter your full name' },
-                { label: 'Identification Number *', id: 'identification_number', required: true, type: 'text', placeholder: 'Enter your identification number' },
-                { label: 'Staff ID', id: 'staff_id', type: 'text', placeholder: 'Enter your staff ID (optional)' },
-                { label: 'Email Address', id: 'email', type: 'email', placeholder: 'Enter your email' },
-                { label: 'Phone Number', id: 'phone', type: 'tel', placeholder: 'Enter your phone number' }
-              ].map((field) => (
-                <div key={field.id}>
-                  <label htmlFor={field.id} className="block text-sm font-medium text-gray-700 mb-2">
-                    {field.label}
-                  </label>
-                  <input
-                    type={field.type}
-                    id={field.id}
-                    required={field.required || false}
-                    value={(formData as any)[field.id]}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, [field.id]: e.target.value }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder={field.placeholder}
-                  />
-                </div>
-              ))}
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your full name"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="identification_number" className="block text-sm font-medium text-gray-700 mb-2">
+                  Identification Number *
+                </label>
+                <input
+                  type="text"
+                  id="identification_number"
+                  required
+                  value={formData.identification_number}
+                  onChange={(e) => setFormData({ ...formData, identification_number: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your identification number"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="staff_id" className="block text-sm font-medium text-gray-700 mb-2">
+                  Staff ID
+                </label>
+                <input
+                  type="text"
+                  id="staff_id"
+                  value={formData.staff_id}
+                  onChange={(e) => setFormData({ ...formData, staff_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your staff ID (optional)"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your email"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your phone number"
+                />
+              </div>
 
               <button
                 type="submit"
@@ -193,7 +231,6 @@ export default function Registration() {
               </button>
             </form>
           </div>
-
         </div>
       </div>
     </div>
