@@ -96,6 +96,8 @@ export type Database = {
           identification_number: string
           staff_id: string | null
           table_assignment: string | null
+          table_number: number | null
+          seat_number: number | null
           qr_code: string | null
           checked_in: boolean | null
           check_in_time: string | null
@@ -110,6 +112,8 @@ export type Database = {
           identification_number: string
           staff_id?: string | null
           table_assignment?: string | null
+          table_number?: number | null
+          seat_number?: number | null
           qr_code?: string | null
           checked_in?: boolean | null
           check_in_time?: string | null
@@ -124,6 +128,8 @@ export type Database = {
           identification_number?: string
           staff_id?: string | null
           table_assignment?: string | null
+          table_number?: number | null
+          seat_number?: number | null
           qr_code?: string | null
           checked_in?: boolean | null
           check_in_time?: string | null
