@@ -1,122 +1,95 @@
-import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
-import { Upload, Image, Camera, CheckCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { supabase } from './lib/supabase'
-import toast from 'react-hot-toast'
+import DemoNotice from './components/DemoNotice'
+import Layout from './components/Layout'
+import AuthPage from './components/auth/AuthPage'
+import CompanyManagement from './components/admin/CompanyManagement'
+import EventManagement from './components/admin/EventManagement'
+import AttendeeManagement from './components/admin/AttendeeManagement'
+import CheckInSystem from './components/admin/CheckInSystem'
+import WelcomeMonitor from './components/admin/WelcomeMonitor'
+import LuckyDraw from './components/admin/LuckyDraw'
+import EventGallery from './components/admin/EventGallery'
+import SeatingArrangement from './components/admin/SeatingArrangement'
+import MonthlyProgress from './components/admin/MonthlyProgress'
+import VotingAdmin from './components/admin/VotingAdmin'
+import VotingMonitor from './components/admin/VotingMonitor'
+import Registration from './components/public/Registration'
+import Ticket from './components/public/Ticket'
+import GalleryUpload from './components/public/GalleryUpload'
+import VotingPage from './components/public/VotingPage'
 
-interface Event {
-  id: string
-  name: string
-  description: string | null
-  company: {
-    name: string
-  }
-}
-
-export default function GalleryUpload() {
-  const { eventId } = useParams()
-  const [event, setEvent] = useState<Event | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploaded, setUploaded] = useState(false)
-  const [attendeeName, setAttendeeName] = useState('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+function App() {
+  const [user, setUser] = useState<any>(null)
+  const [userCompany, setUserCompany] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [hasValidConfig, setHasValidConfig] = useState(true)
 
   useEffect(() => {
-    if (eventId) {
-      fetchEvent()
+    // Check if Supabase is properly configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+    
+    if (!supabaseUrl || !supabaseKey || 
+        supabaseUrl.includes('your-project') || 
+        supabaseKey.includes('your-anon-key')) {
+      setHasValidConfig(false)
+      setLoading(false)
+      return
     }
-  }, [eventId])
 
-  const fetchEvent = async () => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    }).catch(() => {
+      setHasValidConfig(false)
+      setLoading(false)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        fetchUserCompany(session.user.id)
+      } else {
+        setUserCompany(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  const fetchUserCompany = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('events')
+        .from('company_users')
         .select(`
-          id,
-          name,
-          description,
-          company:companies(name)
+          *,
+          company:companies(*)
         `)
-        .eq('id', eventId)
-        .single()
+        .eq('id', userId)
+        .maybeSingle()
 
-      if (error) throw error
-
-      const normalizedEvent = {
-        ...data,
-        company: Array.isArray(data.company)
-          ? data.company[0] ?? { name: '' }
-          : data.company
-      }
-
-      setEvent(normalizedEvent)
-    } catch (error: any) {
-      toast.error('Event not found')
-    }
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error('File size must be less than 10MB')
+      if (error) {
+        console.error('Error fetching user company:', error)
         return
       }
 
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please select an image file')
-        return
-      }
-
-      setSelectedFile(file)
-      const url = URL.createObjectURL(file)
-      setPreviewUrl(url)
+      setUserCompany(data)
+    } catch (error) {
+      console.error('Error fetching user company:', error)
     }
   }
 
-  const uploadPhoto = async () => {
-    if (!selectedFile || !event) return
-
-    setUploading(true)
-
-    try {
-      const reader = new FileReader()
-      reader.onload = async (e) => {
-        const photoUrl = e.target?.result as string
-
-        const { error } = await supabase
-          .from('gallery_photos')
-          .insert([{
-            event_id: event.id,
-            attendee_name: attendeeName.trim() || null,
-            photo_url: photoUrl
-          }])
-
-        if (error) throw error
-
-        toast.success('Photo uploaded successfully!')
-        setUploaded(true)
-        setSelectedFile(null)
-        setPreviewUrl(null)
-        setAttendeeName('')
-      }
-      reader.readAsDataURL(selectedFile)
-    } catch (error: any) {
-      toast.error('Error uploading photo: ' + error.message)
-    } finally {
-      setUploading(false)
-    }
+  // Show demo notice if Supabase isn't configured
+  if (!hasValidConfig) {
+    return <DemoNotice />
   }
 
-  const resetForm = () => {
-    setUploaded(false)
-    setSelectedFile(null)
-    setPreviewUrl(null)
-    setAttendeeName('')
-  }
-
-  if (!event) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -124,119 +97,49 @@ export default function GalleryUpload() {
     )
   }
 
-  if (uploaded) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Photo Uploaded!</h1>
-            <p className="text-gray-600 mb-6">
-              Thank you for sharing your moment from {event.name}
-            </p>
-            <button
-              onClick={resetForm}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Upload Another Photo
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
-            <Camera className="h-12 w-12 mx-auto mb-4" />
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
-            <p className="text-blue-100">{event.name}</p>
-            <p className="text-blue-200 text-sm">{event.company.name}</p>
-          </div>
-
-          <div className="px-4 md:px-6 py-6 md:py-8">
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={attendeeName}
-                  onChange={(e) => setAttendeeName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter your name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Photo
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 md:p-6 text-center hover:border-blue-400 transition-colors">
-                  {previewUrl ? (
-                    <div className="space-y-4">
-                      <img
-                        src={previewUrl}
-                        alt="Preview"
-                        className="max-w-full h-48 md:h-64 object-contain mx-auto rounded-lg"
-                      />
-                      <button
-                        onClick={() => {
-                          setSelectedFile(null)
-                          setPreviewUrl(null)
-                        }}
-                        className="text-blue-600 hover:text-blue-700 text-sm"
-                      >
-                        Choose Different Photo
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <Image className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 mb-2">Click to select a photo</p>
-                      <p className="text-sm text-gray-500">PNG, JPG up to 10MB</p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        id="photo-upload"
-                      />
-                      <label
-                        htmlFor="photo-upload"
-                        className="mt-4 inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-                      >
-                        Select Photo
-                      </label>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {selectedFile && (
-                <button
-                  onClick={uploadPhoto}
-                  disabled={uploading}
-                  className="w-full bg-green-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 text-sm md:text-base"
-                >
-                  <Upload className="h-5 w-5 mr-2" />
-                  {uploading ? 'Uploading...' : 'Upload Photo'}
-                </button>
-              )}
-            </div>
-
-            <div className="mt-8 text-center text-sm text-gray-600">
-              <p>• Your photo will be added to the event gallery</p>
-              <p>• Photos may be displayed during the event</p>
-              <p>• By uploading, you consent to public display</p>
-            </div>
-          </div>
-        </div>
+    <Router>
+      <div className="App">
+        <Toaster position="top-right" />
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/public/register/:eventId" element={<Registration />} />
+          <Route path="/public/ticket/:attendeeId" element={<Ticket />} />
+          <Route path="/public/gallery/:eventId" element={<GalleryUpload />} />
+          <Route path="/public/voting/:sessionId" element={<VotingPage />} />
+          
+          {/* Auth Routes */}
+          <Route path="/auth" element={!user ? <AuthPage /> : <Navigate to="/admin" />} />
+          
+          {/* Protected Admin Routes */}
+          <Route path="/admin/*" element={
+            user ? (
+              <Layout userCompany={userCompany}>
+                <Routes>
+                  <Route path="/" element={<CompanyManagement />} />
+                  <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
+                  <Route path="/progress" element={<MonthlyProgress />} />
+                  <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
+                  <Route path="/checkin" element={<CheckInSystem />} />
+                  <Route path="/welcome-monitor" element={<WelcomeMonitor />} />
+                  <Route path="/lucky-draw" element={<LuckyDraw userCompany={userCompany} />} />
+                  <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
+                  <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
+                  <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
+                  <Route path="/voting-monitor" element={<VotingMonitor />} />
+                </Routes>
+              </Layout>
+            ) : (
+              <Navigate to="/auth" />
+            )
+          } />
+          
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to={user ? "/admin" : "/auth"} />} />
+        </Routes>
       </div>
-    </div>
+    </Router>
   )
 }
+
+export default App
