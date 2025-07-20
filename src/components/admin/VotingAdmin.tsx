@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Vote, Image, Edit, Trash2, Play, Pause, QrCode, Upload } from 'lucide-react'
+import { Plus, Vote, Image, Edit, Trash2, Play, Pause, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
