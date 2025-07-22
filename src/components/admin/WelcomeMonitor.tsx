@@ -38,7 +38,7 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
 
   useEffect(() => {
     fetchEvents()
-  }, [])
+  }, [userCompany])
 
   useEffect(() => {
     if (selectedEventId) {
