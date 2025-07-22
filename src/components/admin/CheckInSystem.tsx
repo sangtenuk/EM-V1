@@ -29,7 +29,11 @@ interface CheckInResult {
   message: string
 }
 
-export default function CheckInSystem() {
+interface CheckInSystemProps {
+  userCompany?: any
+}
+
+export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [scannerActive, setScannerActive] = useState(false)
@@ -61,15 +65,20 @@ export default function CheckInSystem() {
 
   const fetchEvents = async () => {
     try {
-      const { data, error } = await supabase
-        .from('events')
-        .select(`
+      let query = supabase.from('events').select(`
           id,
           name,
+          company_id,
           registration_qr,
           company:companies(name)
         `)
-        .order('created_at', { ascending: false })
+
+      // Filter by company if user is a company user
+      if (userCompany) {
+        query = query.eq('company_id', userCompany.company_id)
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false })
 
       if (error) throw error
       
@@ -80,6 +89,11 @@ export default function CheckInSystem() {
       })) || []
       
       setEvents(formattedEvents)
+
+      // Auto-select first event for company users
+      if (userCompany && formattedEvents && formattedEvents.length > 0) {
+        setSelectedEventId(formattedEvents[0].id)
+      }
     } catch (error: any) {
       toast.error('Error fetching events: ' + error.message)
     }
@@ -335,18 +349,24 @@ export default function CheckInSystem() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Event
             </label>
-            <select
-              value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Choose an event to start check-in</option>
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.name} ({event.company.name})
-                </option>
-              ))}
-            </select>
+            {userCompany && events.length === 1 ? (
+              <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-900">
+                {events[0].name}
+              </div>
+            ) : (
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {!userCompany && <option value="">Choose an event to start check-in</option>}
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {userCompany ? event.name : `${event.name} (${event.company.name})`}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           
           {selectedEventId && (

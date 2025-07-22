@@ -122,13 +122,13 @@ function App() {
                   <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
                   <Route path="/progress" element={<MonthlyProgress />} />
                   <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
-                  <Route path="/checkin" element={<CheckInSystem />} />
-                  <Route path="/welcome-monitor" element={<WelcomeMonitor />} />
+                  <Route path="/checkin" element={<CheckInSystem userCompany={userCompany} />} />
+                  <Route path="/welcome-monitor" element={<WelcomeMonitor userCompany={userCompany} />} />
                   <Route path="/lucky-draw" element={<LuckyDraw userCompany={userCompany} />} />
                   <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
                   <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
                   <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
-                  <Route path="/voting-monitor" element={<VotingMonitor />} />
+                  <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
                 </Routes>
               </Layout>
             ) : (

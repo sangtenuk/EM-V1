@@ -18,7 +18,11 @@ interface LatestCheckIn {
   check_in_time: string
 }
 
-export default function WelcomeMonitor() {
+interface WelcomeMonitorProps {
+  userCompany?: any
+}
+
+export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [latestCheckIn, setLatestCheckIn] = useState<LatestCheckIn | null>(null)
