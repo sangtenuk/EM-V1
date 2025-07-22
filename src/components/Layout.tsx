@@ -14,8 +14,8 @@ interface LayoutProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/admin', icon: BarChart3 },
-  { name: 'Events', href: '/admin/events', icon: Calendar },
   { name: 'Companies', href: '/admin/companies', icon: Building2 },
+  { name: 'Events', href: '/admin/events', icon: Calendar },
   { name: 'Attendees', href: '/admin/attendees', icon: Users },
   { name: 'Check-in', href: '/admin/checkin', icon: QrCode },
   { name: 'Seating', href: '/admin/seating', icon: MapPin },
@@ -49,7 +49,8 @@ export default function Layout({ children, userCompany }: LayoutProps) {
         </div>
         <nav className="mt-8 space-y-1 px-4">
           {navigation.filter(item => {
-            if (userCompany && item.href === '/admin') return false
+            // Hide Companies link for company users
+            if (userCompany && item.href === '/admin/companies') return false
             return true
           }).map((item) => {
             const Icon = item.icon

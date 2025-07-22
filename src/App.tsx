@@ -5,6 +5,7 @@ import { supabase } from './lib/supabase'
 import DemoNotice from './components/DemoNotice'
 import Layout from './components/Layout'
 import AuthPage from './components/auth/AuthPage'
+import Dashboard from './components/admin/Dashboard'
 import CompanyManagement from './components/admin/CompanyManagement'
 import EventManagement from './components/admin/EventManagement'
 import AttendeeManagement from './components/admin/AttendeeManagement'
@@ -116,7 +117,8 @@ function App() {
             user ? (
               <Layout userCompany={userCompany}>
                 <Routes>
-                  <Route path="/" element={<CompanyManagement />} />
+                  <Route path="/" element={<Dashboard userCompany={userCompany} />} />
+                  <Route path="/companies" element={<CompanyManagement />} />
                   <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
                   <Route path="/progress" element={<MonthlyProgress />} />
                   <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
