@@ -1,6 +1,6 @@
 /* import React, { useState, useEffect } from 'react' */
  import { useState, useEffect } from 'react' 
-import { Users, Search, Download, UserPlus, QrCode } from 'lucide-react'
+import { Users, Search, Download, UserPlus, QrCode, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
@@ -45,6 +45,8 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
   const [selectedEventId, setSelectedEventId] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
     event_id: '',
@@ -235,6 +237,120 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
     window.URL.revokeObjectURL(url)
   }
 
+  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please select a CSV file')
+      return
+    }
+
+    setImporting(true)
+
+    try {
+      const text = await file.text()
+      const lines = text.split('\n').filter(line => line.trim())
+      
+      if (lines.length < 2) {
+        toast.error('CSV file must have at least a header row and one data row')
+        return
+      }
+
+      // Parse CSV header
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+      const requiredFields = ['name', 'identification_number']
+      const missingFields = requiredFields.filter(field => !headers.includes(field))
+      
+      if (missingFields.length > 0) {
+        toast.error(`Missing required columns: ${missingFields.join(', ')}`)
+        return
+      }
+
+      // Parse data rows
+      const attendeesToImport = []
+      const errors = []
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim())
+        const row: any = {}
+        
+        headers.forEach((header, index) => {
+          row[header] = values[index] || ''
+        })
+
+        if (!row.name || !row.identification_number) {
+          errors.push(`Row ${i + 1}: Missing name or identification number`)
+          continue
+        }
+
+        const attendeeId = crypto.randomUUID()
+        const qrData = `${attendeeId}|${formData.event_id}|${row.name}`
+        
+        try {
+          const qrCodeDataUrl = await QRCodeLib.toDataURL(qrData, {
+            width: 200,
+            margin: 1,
+            errorCorrectionLevel: 'L'
+          })
+
+          attendeesToImport.push({
+            id: attendeeId,
+            event_id: formData.event_id,
+            name: row.name,
+            email: row.email || null,
+            phone: row.phone || null,
+            identification_number: row.identification_number,
+            staff_id: row.staff_id || null,
+            qr_code: qrCodeDataUrl
+          })
+        } catch (qrError) {
+          errors.push(`Row ${i + 1}: Error generating QR code`)
+        }
+      }
+
+      if (errors.length > 0) {
+        toast.error(`Import errors: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}`)
+      }
+
+      if (attendeesToImport.length === 0) {
+        toast.error('No valid attendees to import')
+        return
+      }
+
+      // Insert attendees in batches
+      const batchSize = 50
+      let imported = 0
+
+      for (let i = 0; i < attendeesToImport.length; i += batchSize) {
+        const batch = attendeesToImport.slice(i, i + batchSize)
+        const { error } = await supabase
+          .from('attendees')
+          .insert(batch)
+
+        if (error) {
+          console.error('Batch import error:', error)
+          toast.error(`Error importing batch: ${error.message}`)
+        } else {
+          imported += batch.length
+        }
+      }
+
+      toast.success(`Successfully imported ${imported} attendees`)
+      setShowImportModal(false)
+      
+      if (selectedEventId) {
+        fetchAttendees()
+      } else {
+        fetchAllAttendees()
+      }
+    } catch (error: any) {
+      toast.error('Error reading CSV file: ' + error.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const filteredAttendees = attendees.filter(attendee =>
     attendee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (attendee.email && attendee.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -256,6 +372,13 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
           >
             <Download className="h-5 w-5 mr-2" />
             Export CSV
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center"
+          >
+            <Upload className="h-5 w-5 mr-2" />
+            Import CSV
           </button>
           <button
             onClick={() => {
@@ -534,6 +657,75 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-4">Import Attendees from CSV</h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Event *
+              </label>
+              <select
+                value={formData.event_id}
+                onChange={(e) => setFormData({ ...formData, event_id: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="">Select an event</option>
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {userCompany ? event.name : `${event.name} (${event.company.name})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                CSV File *
+              </label>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCSVImport}
+                disabled={!formData.event_id || importing}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              />
+            </div>
+
+            <div className="bg-blue-50 rounded-lg p-4 mb-4">
+              <h3 className="font-medium text-blue-900 mb-2">CSV Format Requirements:</h3>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Required columns: <code>name</code>, <code>identification_number</code></li>
+                <li>• Optional columns: <code>email</code>, <code>phone</code>, <code>staff_id</code></li>
+                <li>• First row must be headers</li>
+                <li>• Use comma separation</li>
+              </ul>
+            </div>
+
+            {importing && (
+              <div className="mb-4 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-sm text-gray-600 mt-2">Importing attendees...</p>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                disabled={importing}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
