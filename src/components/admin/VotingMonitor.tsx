@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Monitor, Vote, Trophy, Users, BarChart3 } from 'lucide-react'
+/* import { Monitor, Vote, Trophy, Users, BarChart3 } from 'lucide-react' */
+ import { Monitor, Vote, Trophy, BarChart3 } from 'lucide-react' 
 import { supabase } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 
