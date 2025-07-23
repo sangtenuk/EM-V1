@@ -17,7 +17,13 @@ import {
   Activity,
   Search,
   Clock,
-  Eye
+  Eye,
+  Sparkles,
+  Star,
+  Zap,
+  Target,
+  Award,
+  Rocket
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
@@ -78,6 +84,7 @@ interface CompanyStats {
     icon: any
     description: string
     color: string
+    gradient: string
   }>
   monthlyData: Array<{
     month: string
@@ -335,42 +342,48 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           path: '/admin/events',
           icon: Calendar,
           description: 'Set up a new event',
-          color: 'bg-blue-500'
+          color: 'bg-gradient-to-br from-blue-500 to-cyan-500',
+          gradient: 'from-blue-500 to-cyan-500'
         },
         {
           name: 'Manage Attendees',
           path: '/admin/attendees',
           icon: Users,
           description: 'View and manage registrations',
-          color: 'bg-green-500'
+          color: 'bg-gradient-to-br from-green-500 to-emerald-500',
+          gradient: 'from-green-500 to-emerald-500'
         },
         {
           name: 'Check-in System',
           path: '/admin/checkin',
           icon: QrCode,
           description: 'Scan QR codes for check-in',
-          color: 'bg-purple-500'
+          color: 'bg-gradient-to-br from-purple-500 to-indigo-500',
+          gradient: 'from-purple-500 to-indigo-500'
         },
         {
           name: 'Seating Arrangement',
           path: '/admin/seating',
           icon: MapPin,
           description: 'Arrange tables and seats',
-          color: 'bg-orange-500'
+          color: 'bg-gradient-to-br from-orange-500 to-red-500',
+          gradient: 'from-orange-500 to-red-500'
         },
         {
           name: 'Event Gallery',
           path: '/admin/gallery',
           icon: Image,
           description: 'Manage photo uploads',
-          color: 'bg-pink-500'
+          color: 'bg-gradient-to-br from-pink-500 to-rose-500',
+          gradient: 'from-pink-500 to-rose-500'
         },
         {
           name: 'Voting System',
           path: '/admin/voting',
           icon: Vote,
           description: 'Create voting sessions',
-          color: 'bg-indigo-500'
+          color: 'bg-gradient-to-br from-violet-500 to-purple-500',
+          gradient: 'from-violet-500 to-purple-500'
         }
       ]
 
@@ -393,7 +406,10 @@ export default function Dashboard({ userCompany }: DashboardProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+          <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-purple-600 animate-pulse" />
+        </div>
       </div>
     )
   }
@@ -401,44 +417,59 @@ export default function Dashboard({ userCompany }: DashboardProps) {
   // Admin Dashboard
   if (!userCompany && adminStats) {
     return (
-      <div>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600 mt-2">System-wide analytics and management overview</p>
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl shadow-lg">
+              <BarChart3 className="h-8 w-8 text-white" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent mb-2">
+            Admin Dashboard
+          </h1>
+          <p className="text-gray-600 text-lg">System-wide analytics and management overview</p>
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-gray-400" />
+            </div>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="block w-full pl-12 pr-12 py-4 border-0 rounded-xl bg-gray-50/50 placeholder-gray-500 focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all duration-300 text-lg"
               placeholder="Search companies, users, or events..."
             />
             {searching && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                <div className="w-5 h-5 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin"></div>
               </div>
             )}
           </div>
 
           {/* Search Results */}
           {searchResults && (
-            <div className="mt-4 space-y-4">
+            <div className="mt-6 space-y-6">
               {searchResults.companies.length > 0 && (
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-2">Companies</h3>
-                  <div className="space-y-2">
+                <div className="animate-fade-in">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <Building2 className="h-5 w-5 text-blue-500 mr-2" />
+                    Companies
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {searchResults.companies.map(company => (
-                      <div key={company.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={company.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-300">
                         <div className="flex items-center">
-                          <Building2 className="h-4 w-4 text-blue-600 mr-2" />
-                          <span>{company.name}</span>
+                          <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg mr-3">
+                            <Building2 className="h-4 w-4 text-white" />
+                          </div>
+                          <span className="font-medium text-gray-900">{company.name}</span>
                         </div>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">
                           {new Date(company.created_at).toLocaleDateString()}
                         </span>
                       </div>
@@ -448,16 +479,21 @@ export default function Dashboard({ userCompany }: DashboardProps) {
               )}
 
               {searchResults.users.length > 0 && (
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-2">Users</h3>
-                  <div className="space-y-2">
+                <div className="animate-fade-in">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <Users className="h-5 w-5 text-green-500 mr-2" />
+                    Users
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {searchResults.users.map(user => (
-                      <div key={user.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={user.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 hover:shadow-md transition-all duration-300">
                         <div className="flex items-center">
-                          <Users className="h-4 w-4 text-green-600 mr-2" />
+                          <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg mr-3">
+                            <Users className="h-4 w-4 text-white" />
+                          </div>
                           <div>
-                            <span>{user.email}</span>
-                            <div className="text-sm text-gray-500">{user.company.name}</div>
+                            <span className="font-medium text-gray-900 block">{user.email}</span>
+                            <span className="text-sm text-gray-500">{user.company.name}</span>
                           </div>
                         </div>
                       </div>
@@ -467,20 +503,25 @@ export default function Dashboard({ userCompany }: DashboardProps) {
               )}
 
               {searchResults.events.length > 0 && (
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-2">Events</h3>
-                  <div className="space-y-2">
+                <div className="animate-fade-in">
+                  <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <Calendar className="h-5 w-5 text-purple-500 mr-2" />
+                    Events
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {searchResults.events.map(event => (
-                      <div key={event.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={event.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-300">
                         <div className="flex items-center">
-                          <Calendar className="h-4 w-4 text-purple-600 mr-2" />
+                          <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg mr-3">
+                            <Calendar className="h-4 w-4 text-white" />
+                          </div>
                           <div>
-                            <span>{event.name}</span>
-                            <div className="text-sm text-gray-500">{event.company.name}</div>
+                            <span className="font-medium text-gray-900 block">{event.name}</span>
+                            <span className="text-sm text-gray-500">{event.company.name}</span>
                           </div>
                         </div>
                         {event.date && (
-                          <span className="text-sm text-gray-500">
+                          <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">
                             {new Date(event.date).toLocaleDateString()}
                           </span>
                         )}
@@ -494,62 +535,78 @@ export default function Dashboard({ userCompany }: DashboardProps) {
         </div>
 
         {/* Admin Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <Building2 className="h-8 w-8 text-blue-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mr-4">
+                <Building2 className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{adminStats.totalCompanies}</div>
-                <div className="text-sm text-gray-600">Companies</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                  {adminStats.totalCompanies}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Companies</div>
                 {adminStats.monthlyGrowth.companies > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1">
+                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +{adminStats.monthlyGrowth.companies}
+                    +{adminStats.monthlyGrowth.companies} this month
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <Calendar className="h-8 w-8 text-green-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mr-4">
+                <Calendar className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{adminStats.totalEvents}</div>
-                <div className="text-sm text-gray-600">Events</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  {adminStats.totalEvents}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Events</div>
                 {adminStats.monthlyGrowth.events > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1">
+                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +{adminStats.monthlyGrowth.events}
+                    +{adminStats.monthlyGrowth.events} this month
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <Users className="h-8 w-8 text-purple-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg mr-4">
+                <Users className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{adminStats.totalAttendees}</div>
-                <div className="text-sm text-gray-600">Attendees</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  {adminStats.totalAttendees}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Attendees</div>
                 {adminStats.monthlyGrowth.attendees > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1">
+                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +{adminStats.monthlyGrowth.attendees}
+                    +{adminStats.monthlyGrowth.attendees} this month
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <UserCheck className="h-8 w-8 text-orange-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg mr-4">
+                <UserCheck className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{adminStats.totalCheckedIn}</div>
-                <div className="text-sm text-gray-600">Check-ins</div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                  {adminStats.totalCheckedIn}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Check-ins</div>
+                <div className="text-xs text-gray-500 mt-1 bg-gray-50 px-2 py-1 rounded-full">
                   {adminStats.totalAttendees > 0 
                     ? `${Math.round((adminStats.totalCheckedIn / adminStats.totalAttendees) * 100)}% rate`
                     : '0% rate'
@@ -559,16 +616,20 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <Eye className="h-8 w-8 text-indigo-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl shadow-lg mr-4">
+                <Eye className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{adminStats.totalUsers}</div>
-                <div className="text-sm text-gray-600">Users</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  {adminStats.totalUsers}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Users</div>
                 {adminStats.monthlyGrowth.users > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1">
+                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
                     <TrendingUp className="h-3 w-3 mr-1" />
-                    +{adminStats.monthlyGrowth.users}
+                    +{adminStats.monthlyGrowth.users} this month
                   </div>
                 )}
               </div>
@@ -576,93 +637,123 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           </div>
         </div>
 
-        {/* Admin Management Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <BarChart3 className="h-6 w-6 mr-2" />
+        {/* Admin Management and Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <h2 className="text-xl font-semibold mb-6 flex items-center">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg mr-3">
+                <Rocket className="h-6 w-6 text-white" />
+              </div>
               System Management
             </h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <Link
                 to="/admin/companies"
-                className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="group p-6 border-2 border-gray-100 rounded-xl hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 transition-all duration-300 card-hover"
               >
-                <Building2 className="h-8 w-8 text-blue-600 mb-2" />
-                <div className="font-medium">Companies</div>
-                <div className="text-sm text-gray-600">Manage organizations</div>
+                <div className="flex items-center">
+                  <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mr-4 group-hover:scale-110 transition-transform duration-300">
+                    <Building2 className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-lg">Companies</div>
+                    <div className="text-sm text-gray-600">Manage organizations</div>
+                  </div>
+                </div>
               </Link>
               <Link
                 to="/admin/progress"
-                className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="group p-6 border-2 border-gray-100 rounded-xl hover:border-green-300 hover:bg-gradient-to-br hover:from-green-50 hover:to-emerald-50 transition-all duration-300 card-hover"
               >
-                <Activity className="h-8 w-8 text-green-600 mb-2" />
-                <div className="font-medium">Analytics</div>
-                <div className="text-sm text-gray-600">Monthly progress</div>
+                <div className="flex items-center">
+                  <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mr-4 group-hover:scale-110 transition-transform duration-300">
+                    <Activity className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-lg">Analytics</div>
+                    <div className="text-sm text-gray-600">Monthly progress</div>
+                  </div>
+                </div>
               </Link>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Recent Events</h2>
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold flex items-center">
+                <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg mr-3">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
+                Recent Events
+              </h2>
               <Link 
                 to="/admin/events" 
-                className="text-blue-600 hover:text-blue-700 flex items-center text-sm"
+                className="text-purple-600 hover:text-purple-700 flex items-center text-sm font-medium bg-purple-50 px-3 py-2 rounded-lg hover:bg-purple-100 transition-all duration-300"
               >
                 View All <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </div>
             <div className="space-y-3">
-              {adminStats.recentEvents.map((event) => (
-                <div key={event.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+              {adminStats.recentEvents.map((event, index) => (
+                <div key={event.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div>
                     <div className="font-medium text-gray-900">{event.name}</div>
                     <div className="text-sm text-gray-600">{event.company.name}</div>
                     {event.date && (
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full mt-1 inline-block">
                         {new Date(event.date).toLocaleDateString()}
                       </div>
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium">{event.checked_in_count}/{event.attendee_count}</div>
+                    <div className="text-lg font-bold text-gray-900">{event.checked_in_count}/{event.attendee_count}</div>
                     <div className="text-xs text-gray-500">checked in</div>
+                    <div className="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${event.attendee_count > 0 ? (event.checked_in_count / event.attendee_count) * 100 : 0}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
               ))}
               {adminStats.recentEvents.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No recent events</p>
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No recent events</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Recent Users</h2>
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold flex items-center">
+                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg mr-3">
+                  <Users className="h-6 w-6 text-white" />
+                </div>
+                Recent Users
+              </h2>
               <Link 
                 to="/admin/companies" 
-                className="text-blue-600 hover:text-blue-700 flex items-center text-sm"
+                className="text-indigo-600 hover:text-indigo-700 flex items-center text-sm font-medium bg-indigo-50 px-3 py-2 rounded-lg hover:bg-indigo-100 transition-all duration-300"
               >
                 View All <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </div>
             <div className="space-y-3">
-              {adminStats.recentUsers.map((user) => (
-                <div key={user.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+              {adminStats.recentUsers.map((user, index) => (
+                <div key={user.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div>
                     <div className="font-medium text-gray-900">{user.email}</div>
                     <div className="text-sm text-gray-600">{user.company.name}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                       {new Date(user.created_at).toLocaleDateString()}
                     </div>
                     {user.last_sign_in_at && (
-                      <div className="text-xs text-green-600 flex items-center">
+                      <div className="text-xs text-green-600 flex items-center mt-1">
                         <Clock className="h-3 w-3 mr-1" />
                         Active
                       </div>
@@ -671,9 +762,9 @@ export default function Dashboard({ userCompany }: DashboardProps) {
                 </div>
               ))}
               {adminStats.recentUsers.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No recent users</p>
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No recent users</p>
                 </div>
               )}
             </div>
@@ -686,41 +777,63 @@ export default function Dashboard({ userCompany }: DashboardProps) {
   // Company User Dashboard
   if (userCompany && companyStats) {
     return (
-      <div>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-2">Welcome back to {userCompany.company.name}</p>
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl shadow-lg">
+              <Star className="h-8 w-8 text-white" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+            Welcome Back!
+          </h1>
+          <p className="text-gray-600 text-lg">
+            <span className="font-semibold text-indigo-600">{userCompany.company.name}</span> Dashboard
+          </p>
         </div>
 
         {/* Company Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <Calendar className="h-8 w-8 text-blue-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mr-4">
+                <Calendar className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{companyStats.totalEvents}</div>
-                <div className="text-sm text-gray-600">Total Events</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                  {companyStats.totalEvents}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Total Events</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <Users className="h-8 w-8 text-green-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mr-4">
+                <Users className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{companyStats.totalAttendees}</div>
-                <div className="text-sm text-gray-600">Total Attendees</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  {companyStats.totalAttendees}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Total Attendees</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <UserCheck className="h-8 w-8 text-purple-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg mr-4">
+                <UserCheck className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{companyStats.totalCheckedIn}</div>
-                <div className="text-sm text-gray-600">Total Check-ins</div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  {companyStats.totalCheckedIn}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Total Check-ins</div>
+                <div className="text-xs text-gray-500 mt-1 bg-gray-50 px-2 py-1 rounded-full">
                   {companyStats.totalAttendees > 0 
                     ? `${Math.round((companyStats.totalCheckedIn / companyStats.totalAttendees) * 100)}% rate`
                     : '0% rate'
@@ -730,67 +843,73 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
             <div className="flex items-center">
-              <TrendingUp className="h-8 w-8 text-orange-600 mr-3" />
+              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg mr-4">
+                <TrendingUp className="h-8 w-8 text-white" />
+              </div>
               <div>
-                <div className="text-2xl font-bold text-gray-900">{companyStats.upcomingEvents}</div>
-                <div className="text-sm text-gray-600">Upcoming Events</div>
+                <div className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                  {companyStats.upcomingEvents}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Upcoming Events</div>
               </div>
             </div>
           </div>
         </div>
 
         {/* Monthly Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <BarChart3 className="h-6 w-6 mr-2" />
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center">
+            <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg mr-3">
+              <BarChart3 className="h-6 w-6 text-white" />
+            </div>
             Monthly Performance
           </h2>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {companyStats.monthlyData.map((month, index) => {
               const maxValue = Math.max(...companyStats.monthlyData.map(m => Math.max(m.events * 10, m.attendees, m.checkedIn)))
               return (
-                <div key={index} className="space-y-2">
+                <div key={index} className="space-y-3 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div className="flex justify-between text-sm">
-                    <span className="font-medium">{month.month}</span>
-                    <span className="text-gray-600">
+                    <span className="font-semibold text-gray-900 text-lg">{month.month}</span>
+                    <span className="text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
                       {month.events} events • {month.attendees} attendees
                     </span>
                   </div>
                   
-                  <div className="space-y-1">
+                  <div className="space-y-3">
                     <div className="flex items-center">
-                      <div className="w-16 text-xs text-gray-600">Events</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div className="w-20 text-sm text-gray-600 font-medium">Events</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-3 mx-3">
                         <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-to-r from-blue-500 to-cyan-500 h-3 rounded-full transition-all duration-700 shadow-sm"
                           style={{ width: `${maxValue > 0 ? ((month.events * 10) / maxValue) * 100 : 0}%` }}
                         ></div>
                       </div>
-                      <div className="w-8 text-xs text-right">{month.events}</div>
+                      <div className="w-12 text-sm text-right font-bold text-blue-600">{month.events}</div>
                     </div>
                     
                     <div className="flex items-center">
-                      <div className="w-16 text-xs text-gray-600">Attendees</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div className="w-20 text-sm text-gray-600 font-medium">Attendees</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-3 mx-3">
                         <div
-                          className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-to-r from-green-500 to-emerald-500 h-3 rounded-full transition-all duration-700 shadow-sm"
                           style={{ width: `${maxValue > 0 ? (month.attendees / maxValue) * 100 : 0}%` }}
                         ></div>
                       </div>
-                      <div className="w-8 text-xs text-right">{month.attendees}</div>
+                      <div className="w-12 text-sm text-right font-bold text-green-600">{month.attendees}</div>
                     </div>
                     
                     <div className="flex items-center">
-                      <div className="w-16 text-xs text-gray-600">Check-ins</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div className="w-20 text-sm text-gray-600 font-medium">Check-ins</div>
+                      <div className="flex-1 bg-gray-200 rounded-full h-3 mx-3">
                         <div
-                          className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-700 shadow-sm"
                           style={{ width: `${maxValue > 0 ? (month.checkedIn / maxValue) * 100 : 0}%` }}
                         ></div>
                       </div>
-                      <div className="w-8 text-xs text-right">{month.checkedIn}</div>
+                      <div className="w-12 text-sm text-right font-bold text-purple-600">{month.checkedIn}</div>
                     </div>
                   </div>
                 </div>
@@ -800,88 +919,80 @@ export default function Dashboard({ userCompany }: DashboardProps) {
         </div>
 
         {/* Quick Actions and Recent Events */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {companyStats.quickActions.slice(0, 4).map((action) => {
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <h2 className="text-2xl font-semibold mb-6 flex items-center">
+              <div className="p-2 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg mr-3">
+                <Zap className="h-6 w-6 text-white" />
+              </div>
+              Quick Actions
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {companyStats.quickActions.map((action, index) => {
                 const Icon = action.icon
                 return (
                   <Link
                     key={action.name}
                     to={action.path}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group"
+                    className="group p-6 border-2 border-gray-100 rounded-xl hover:border-transparent hover:shadow-xl transition-all duration-300 card-hover animate-scale-in"
+                    style={{ animationDelay: `${index * 0.1}s` }}
                   >
-                    <div className={`w-10 h-10 ${action.color} rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                      <Icon className="h-5 w-5 text-white" />
+                    <div className={`w-12 h-12 bg-gradient-to-br ${action.gradient} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                      <Icon className="h-6 w-6 text-white" />
                     </div>
-                    <div className="font-medium text-gray-900">{action.name}</div>
+                    <div className="font-semibold text-gray-900 text-lg mb-1">{action.name}</div>
                     <div className="text-sm text-gray-600">{action.description}</div>
                   </Link>
                 )
               })}
             </div>
-            
-            {companyStats.quickActions.length > 4 && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-2 gap-4">
-                  {companyStats.quickActions.slice(4).map((action) => {
-                    const Icon = action.icon
-                    return (
-                      <Link
-                        key={action.name}
-                        to={action.path}
-                        className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors group"
-                      >
-                        <div className={`w-8 h-8 ${action.color} rounded-lg flex items-center justify-center mr-3 group-hover:scale-110 transition-transform`}>
-                          <Icon className="h-4 w-4 text-white" />
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900 text-sm">{action.name}</div>
-                          <div className="text-xs text-gray-600">{action.description}</div>
-                        </div>
-                      </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Recent Events</h2>
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold flex items-center">
+                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg mr-3">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
+                Recent Events
+              </h2>
               <Link 
                 to="/admin/events" 
-                className="text-blue-600 hover:text-blue-700 flex items-center text-sm"
+                className="text-green-600 hover:text-green-700 flex items-center text-sm font-medium bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-all duration-300"
               >
                 View All <ArrowRight className="h-4 w-4 ml-1" />
               </Link>
             </div>
-            <div className="space-y-3">
-              {companyStats.recentEvents.map((event) => (
-                <div key={event.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+            <div className="space-y-4">
+              {companyStats.recentEvents.map((event, index) => (
+                <div key={event.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div>
-                    <div className="font-medium text-gray-900">{event.name}</div>
+                    <div className="font-semibold text-gray-900 text-lg">{event.name}</div>
                     {event.date && (
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full mt-1 inline-block">
                         {new Date(event.date).toLocaleDateString()}
                       </div>
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium">{event.checked_in_count}/{event.attendee_count}</div>
+                    <div className="text-xl font-bold text-gray-900">{event.checked_in_count}/{event.attendee_count}</div>
                     <div className="text-xs text-gray-500">attendees</div>
+                    <div className="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${event.attendee_count > 0 ? (event.checked_in_count / event.attendee_count) * 100 : 0}%` }}
+                      ></div>
+                    </div>
                   </div>
                 </div>
               ))}
               {companyStats.recentEvents.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No events yet</p>
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No events yet</p>
                   <Link 
                     to="/admin/events" 
-                    className="text-blue-600 hover:text-blue-700 text-sm"
+                    className="text-green-600 hover:text-green-700 text-sm font-medium bg-green-50 px-4 py-2 rounded-lg hover:bg-green-100 transition-all duration-300 inline-block mt-2"
                   >
                     Create your first event
                   </Link>
@@ -891,37 +1002,54 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           </div>
         </div>
 
-        {/* Additional Tools */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">Event Tools</h2>
+        {/* Event Tools */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center">
+            <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg mr-3">
+              <Target className="h-6 w-6 text-white" />
+            </div>
+            Event Tools & Monitors
+          </h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Link
               to="/admin/lucky-draw"
-              className="p-4 text-center border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-yellow-300 hover:bg-gradient-to-br hover:from-yellow-50 hover:to-orange-50 transition-all duration-300 card-hover"
             >
-              <Gift className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
-              <div className="font-medium text-sm">Lucky Draw</div>
+              <div className="p-3 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <Gift className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Lucky Draw</div>
+              <div className="text-sm text-gray-600 mt-1">Random winner selection</div>
             </Link>
             <Link
               to="/admin/welcome-monitor"
-              className="p-4 text-center border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 transition-all duration-300 card-hover"
             >
-              <Monitor className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="font-medium text-sm">Welcome Monitor</div>
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <Monitor className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Welcome Monitor</div>
+              <div className="text-sm text-gray-600 mt-1">Live check-in display</div>
             </Link>
             <Link
               to="/admin/voting-monitor"
-              className="p-4 text-center border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-purple-300 hover:bg-gradient-to-br hover:from-purple-50 hover:to-pink-50 transition-all duration-300 card-hover"
             >
-              <BarChart3 className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <div className="font-medium text-sm">Voting Monitor</div>
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <BarChart3 className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Voting Monitor</div>
+              <div className="text-sm text-gray-600 mt-1">Live voting results</div>
             </Link>
             <Link
               to="/admin/progress"
-              className="p-4 text-center border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-green-300 hover:bg-gradient-to-br hover:from-green-50 hover:to-emerald-50 transition-all duration-300 card-hover"
             >
-              <Activity className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <div className="font-medium text-sm">Analytics</div>
+              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <Award className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Analytics</div>
+              <div className="text-sm text-gray-600 mt-1">Performance insights</div>
             </Link>
           </div>
         </div>

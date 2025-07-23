@@ -242,12 +242,19 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     <div>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Event Management</h1>
-          <p className="text-gray-600 mt-2">Manage events across all companies</p>
+          <div className="flex items-center mb-4">
+            <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl shadow-lg mr-4">
+              <Calendar className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Event Management</h1>
+              <p className="text-gray-600 text-lg">Manage events across all companies</p>
+            </div>
+          </div>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-1"
         >
           <Plus className="h-5 w-5 mr-2" />
           Add Event
@@ -256,22 +263,22 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {events.map((event) => (
-          <div key={event.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+          <div key={event.id} className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl transition-all duration-300 card-hover">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-1">{event.name}</h3>
-                <p className="text-sm text-blue-600 font-medium">{event.company.name}</p>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{event.name}</h3>
+                <p className="text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">{event.company.name}</p>
               </div>
               <div className="flex space-x-2">
                 <button
                   onClick={() => openEditModal(event)}
-                  className="text-gray-400 hover:text-blue-600 transition-colors"
+                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-300"
                 >
                   <Edit className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => deleteEvent(event.id)}
-                  className="text-gray-400 hover:text-red-600 transition-colors"
+                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-300"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -279,12 +286,12 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
             </div>
 
             {event.description && (
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2">{event.description}</p>
+              <p className="text-gray-600 text-sm mb-4 line-clamp-2 bg-gray-50 p-3 rounded-lg">{event.description}</p>
             )}
 
-            <div className="space-y-2 mb-4">
+            <div className="space-y-3 mb-4">
               {event.date && (
-                <div className="flex items-center text-gray-600 text-sm">
+                <div className="flex items-center text-gray-600 text-sm bg-blue-50 p-2 rounded-lg">
                   <Calendar className="h-4 w-4 mr-2" />
                   <span>{new Date(event.date).toLocaleDateString('en-US', {
                     weekday: 'short',
@@ -296,12 +303,12 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                 </div>
               )}
               {event.location && (
-                <div className="flex items-center text-gray-600 text-sm">
+                <div className="flex items-center text-gray-600 text-sm bg-green-50 p-2 rounded-lg">
                   <MapPin className="h-4 w-4 mr-2" />
                   <span className="truncate">{event.location}</span>
                 </div>
               )}
-              <div className="flex items-center text-gray-600 text-sm">
+              <div className="flex items-center text-gray-600 text-sm bg-purple-50 p-2 rounded-lg">
                 <Users className="h-4 w-4 mr-2" />
                 <span>{event.attendee_count} registered • {event.checked_in_count} checked in</span>
               </div>
@@ -309,29 +316,29 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
 
             {/* QR Code Display */}
             {event.registration_qr && (
-              <div className="border-t pt-4 mb-4">
+              <div className="border-t border-gray-200 pt-4 mb-4">
                 <div className="text-center">
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">Registration QR Code</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Registration QR Code</h4>
                   <div className="flex justify-center mb-3">
                     <img 
                       src={event.registration_qr} 
                       alt="Registration QR Code" 
-                      className="w-32 h-32 border border-gray-200 rounded-lg"
+                      className="w-32 h-32 border-2 border-gray-200 rounded-xl shadow-sm"
                     />
                   </div>
-                  <p className="text-xs text-gray-600 mb-2">
+                  <p className="text-xs text-gray-600 mb-2 bg-gray-50 px-3 py-1 rounded-full">
                     Scan to register for this event
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="border-t pt-4">
+            <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center">
                 <div className="flex space-x-2">
                   <button
                     onClick={() => navigator.clipboard.writeText(getRegistrationUrl(event.id))}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center"
+                    className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-all duration-300"
                   >
                     <ExternalLink className="h-4 w-4 mr-1" />
                     Copy Link
@@ -339,14 +346,14 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                   {event.registration_qr && (
                     <button
                       onClick={() => downloadQRCode(event)}
-                      className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center"
+                      className="text-green-600 hover:text-green-700 text-sm font-semibold flex items-center bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-all duration-300"
                     >
                       <QrCode className="h-4 w-4 mr-1" />
                       Download
                     </button>
                   )}
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
                   Max: {event.max_attendees}
                 </span>
               </div>
@@ -357,12 +364,14 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
 
       {events.length === 0 && (
         <div className="text-center py-12">
-          <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No events found</h3>
-          <p className="text-gray-600 mb-4">Create your first event to get started</p>
+          <div className="p-4 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl w-fit mx-auto mb-6">
+            <Calendar className="h-16 w-16 text-gray-400" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">No events found</h3>
+          <p className="text-gray-600 mb-6 text-lg">Create your first event to get started</p>
           <button
             onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg font-semibold"
           >
             Add Event
           </button>
@@ -371,9 +380,9 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
 
       {/* Create/Edit Event Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
               {editingEvent ? 'Edit Event' : 'Create New Event'}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -389,7 +398,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                   <select
                     value={formData.company_id}
                     onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                     required
                   >
                     <option value="">Select a company</option>
@@ -410,7 +419,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                   placeholder="Enter event name"
                   required
                 />
@@ -423,7 +432,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                   rows={3}
                   placeholder="Enter event description"
                 />
@@ -438,7 +447,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                     type="datetime-local"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                   />
                 </div>
 
@@ -450,7 +459,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                     type="number"
                     value={formData.max_attendees}
                     onChange={(e) => setFormData({ ...formData, max_attendees: parseInt(e.target.value) || 1000 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                     min="1"
                   />
                 </div>
@@ -464,7 +473,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                   placeholder="Enter event location"
                 />
               </div>
@@ -473,13 +482,13 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  className="px-6 py-3 text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all duration-300 font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-300 font-semibold shadow-lg"
                 >
                   {editingEvent ? 'Update Event' : 'Create Event'}
                 </button>
