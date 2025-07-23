@@ -858,65 +858,7 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           </div>
         </div>
 
-        {/* Monthly Chart */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8">
-          <h2 className="text-2xl font-semibold mb-6 flex items-center">
-            <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg mr-3">
-              <BarChart3 className="h-6 w-6 text-white" />
-            </div>
-            Monthly Performance
-          </h2>
-          <div className="space-y-6">
-            {companyStats.monthlyData.map((month, index) => {
-              const maxValue = Math.max(...companyStats.monthlyData.map(m => Math.max(m.events * 10, m.attendees, m.checkedIn)))
-              return (
-                <div key={index} className="space-y-3 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
-                  <div className="flex justify-between text-sm">
-                    <span className="font-semibold text-gray-900 text-lg">{month.month}</span>
-                    <span className="text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
-                      {month.events} events • {month.attendees} attendees
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <div className="w-20 text-sm text-gray-600 font-medium">Events</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-3 mx-3">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-cyan-500 h-3 rounded-full transition-all duration-700 shadow-sm"
-                          style={{ width: `${maxValue > 0 ? ((month.events * 10) / maxValue) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                      <div className="w-12 text-sm text-right font-bold text-blue-600">{month.events}</div>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <div className="w-20 text-sm text-gray-600 font-medium">Attendees</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-3 mx-3">
-                        <div
-                          className="bg-gradient-to-r from-green-500 to-emerald-500 h-3 rounded-full transition-all duration-700 shadow-sm"
-                          style={{ width: `${maxValue > 0 ? (month.attendees / maxValue) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                      <div className="w-12 text-sm text-right font-bold text-green-600">{month.attendees}</div>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <div className="w-20 text-sm text-gray-600 font-medium">Check-ins</div>
-                      <div className="flex-1 bg-gray-200 rounded-full h-3 mx-3">
-                        <div
-                          className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-700 shadow-sm"
-                          style={{ width: `${maxValue > 0 ? (month.checkedIn / maxValue) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                      <div className="w-12 text-sm text-right font-bold text-purple-600">{month.checkedIn}</div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        
 
         {/* Quick Actions and Recent Events */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
