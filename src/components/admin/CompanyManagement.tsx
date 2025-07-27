@@ -262,7 +262,8 @@ export default function CompanyManagement() {
 
       {/* Companies with Users */}
       <div className="space-y-6">
-        {companies.map((company) => {
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6"
+>        {companies.map((company) => {
           const companyUsersList = companyUsers.filter(user => user.company_id === company.id)
           return (
             <div key={company.id} className="bg-white rounded-lg shadow-md p-6">
@@ -336,6 +337,7 @@ export default function CompanyManagement() {
             </div>
           )
         })}
+          </div>
       </div>
 
       {companies.length === 0 && companyUsers.length === 0 && (
