@@ -114,9 +114,11 @@ export default function Layout({ children, userCompany }: LayoutProps) {
           <div className="flex items-center">
             <Sparkles className="h-6 w-6 text-indigo-600 mr-2" />
             <div>
+              <a href="/">
               <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 EventPro
               </h1>
+                </a>
               {userCompany && (
                 <p className="text-xs text-indigo-600 font-medium truncate">{userCompany.company.name}</p>
               )}
