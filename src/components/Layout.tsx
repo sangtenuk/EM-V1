@@ -45,12 +45,14 @@ export default function Layout({ children, userCompany }: LayoutProps) {
             <div className="text-center">
               <div className="flex items-center justify-center mb-1">
                 <Sparkles className="h-8 w-8 text-white mr-2" />
-                <h1 className="text-2xl font-bold text-white">EventPro</h1>
-                <h6>powered by <i>sangtenuk</i></h6>
+               <a href="/"> <h1 className="text-2xl font-bold text-white">EventPro</h1></a>
+                
               </div>
               {userCompany && (
                 <p className="text-sm text-indigo-100 truncate px-2 font-medium">{userCompany.company.name}</p>
+      
               )}
+              <p className="text-sm text-indigo-400 truncate px-2 font-medium">powered by <i>sangtenuk</i></p>
             </div>
           </div>
 
