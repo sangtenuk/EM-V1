@@ -52,7 +52,7 @@ export default function Layout({ children, userCompany }: LayoutProps) {
                 <p className="text-sm text-indigo-100 truncate px-2 font-medium">{userCompany.company.name}</p>
       
               )}
-              <p className="text-sm text-indigo-100 truncate px-6 font-small">powered by <i>sangtenuk</i></p>
+              <h6 className="text-sm text-indigo-100 truncate px-6 font-small">powered by <i>sangtenuk</i></h6>
             </div>
           </div>
 
