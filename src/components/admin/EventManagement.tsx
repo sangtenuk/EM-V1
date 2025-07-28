@@ -220,6 +220,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   }
 
   const getRegistrationUrl = (eventId: string) => {
+    const baseUrl = 'https://nw.hopto.org/'
     return `${baseUrl}/public/register/${eventId}`
     // OVERIDE return `${window.location.origin}/public/register/${eventId}`
   }
