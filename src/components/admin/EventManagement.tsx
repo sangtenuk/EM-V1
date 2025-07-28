@@ -220,7 +220,8 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   }
 
   const getRegistrationUrl = (eventId: string) => {
-    return `${window.location.origin}/public/register/${eventId}`
+    return `${baseUrl}/public/register/${eventId}`
+    // OVERIDE return `${window.location.origin}/public/register/${eventId}`
   }
 
   const downloadQRCode = (event: Event) => {
