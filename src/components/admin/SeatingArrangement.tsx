@@ -351,9 +351,16 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
         </div>
         <div className="flex space-x-3">
           <button
+            onClick={() => window.open('/admin/events', '_blank')}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Create Event & Tables
+          </button>
+          <button
             onClick={randomizeSeating}
             disabled={!selectedEventId || unassignedAttendees.length === 0}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center disabled:opacity-50"
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center disabled:opacity-50"
           >
             <Shuffle className="h-5 w-5 mr-2" />
             Randomize Seating

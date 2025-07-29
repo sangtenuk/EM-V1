@@ -164,6 +164,18 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
       return
     }
 
+    // Request camera permissions first
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(() => {
+        initializeScanner()
+      })
+      .catch((error) => {
+        console.error('Camera permission denied:', error)
+        toast.error('Camera access is required to scan QR codes. Please allow camera access and try again.')
+      })
+  }
+
+  const initializeScanner = () => {
     setScannerActive(true)
     
     const scanner = new Html5QrcodeScanner(
@@ -171,8 +183,7 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
       { 
         fps: 10, 
         qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        disableFlip: false
+        aspectRatio: 1.0
       },
       false
     )
@@ -184,7 +195,10 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
         setScannerActive(false)
       },
       (error) => {
-        console.log('QR scan error:', error)
+        // Only log actual errors, not scanning attempts
+        if (error && !error.includes('No QR code found')) {
+          console.log('QR scan error:', error)
+        }
       }
     )
 
@@ -400,6 +414,11 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
             <div className="space-y-4">
               {!scannerActive ? (
                 <div>
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      📱 Make sure to allow camera access when prompted
+                    </p>
+                  </div>
                   <button
                     onClick={startScanner}
                     className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"

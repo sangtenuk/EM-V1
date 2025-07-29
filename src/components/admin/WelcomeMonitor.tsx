@@ -42,6 +42,7 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
 
   useEffect(() => {
     if (selectedEventId) {
+      // Set up real-time subscription for new check-ins
       const subscription = supabase
         .channel('check-ins')
         .on(
@@ -53,13 +54,42 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
             filter: `event_id=eq.${selectedEventId}`
           },
           (payload) => {
-            if (payload.new.checked_in && !payload.old.checked_in) {
+            // Check if this is a new check-in (checked_in changed from false to true)
+            if (payload.new && payload.old && 
+                payload.new.checked_in === true && 
+                payload.old.checked_in === false) {
               setLatestCheckIn({
                 id: payload.new.id,
                 name: payload.new.name,
                 company: payload.new.company,
                 check_in_time: payload.new.check_in_time
               })
+              console.log('New check-in detected:', payload.new.name)
+            }
+          }
+        )
+        .subscribe()
+
+      // Also listen for INSERT events (new attendees checking in)
+      const insertSubscription = supabase
+        .channel('new-checkins')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'attendees',
+            filter: `event_id=eq.${selectedEventId}`
+          },
+          (payload) => {
+            if (payload.new && payload.new.checked_in === true) {
+              setLatestCheckIn({
+                id: payload.new.id,
+                name: payload.new.name,
+                company: payload.new.company,
+                check_in_time: payload.new.check_in_time
+              })
+              console.log('New attendee checked in:', payload.new.name)
             }
           }
         )
@@ -67,6 +97,7 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
 
       return () => {
         subscription.unsubscribe()
+        insertSubscription.unsubscribe()
       }
     }
   }, [selectedEventId])
@@ -83,10 +114,22 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
 
   const fetchEvents = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('events')
-        .select(`id, name, company:companies(name)`)  // Assuming 1-to-1 relation
+        .select(`
+          id,
+          name,
+          company_id,
+          company:companies(name)
+        `)
         .order('created_at', { ascending: false })
+
+      // Filter by company if user is a company user
+      if (userCompany) {
+        query = query.eq('company_id', userCompany.company_id)
+      }
+
+      const { data, error } = await query
 
       if (error) throw error
 
@@ -96,6 +139,11 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
           company: Array.isArray(event.company) ? event.company[0] : event.company
         }))
         setEvents(normalizedData)
+
+        // Auto-select first event for company users
+        if (userCompany && normalizedData && normalizedData.length > 0) {
+          setSelectedEventId(normalizedData[0].id)
+        }
       }
     } catch (error: any) {
       console.error('Error fetching events:', error)
@@ -180,19 +228,27 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
           </h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Event</label>
-              <select
-                value={selectedEventId}
-                onChange={(e) => setSelectedEventId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Select an event</option>
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.name} ({event.company.name})
-                  </option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {userCompany && events.length <= 1 ? 'Event' : 'Select Event'}
+              </label>
+              {userCompany && events.length === 1 ? (
+                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-900">
+                  {events[0].name}
+                </div>
+              ) : (
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {!userCompany && <option value="">Select an event</option>}
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {userCompany ? event.name : `${event.name} (${event.company.name})`}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="space-y-3">
               <label className="flex items-center">

@@ -537,18 +537,18 @@ export default function Dashboard({ userCompany }: DashboardProps) {
 
         {/* Admin Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-blue-600 rounded-lg mr-4">
                 <Building2 className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {adminStats.totalCompanies}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Companies</div>
                 {adminStats.monthlyGrowth.companies > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
+                  <div className="text-xs text-green-600 flex items-center mt-1">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +{adminStats.monthlyGrowth.companies} this month
                   </div>
@@ -557,18 +557,18 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-green-600 rounded-lg mr-4">
                 <Calendar className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {adminStats.totalEvents}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Events</div>
                 {adminStats.monthlyGrowth.events > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
+                  <div className="text-xs text-green-600 flex items-center mt-1">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +{adminStats.monthlyGrowth.events} this month
                   </div>
@@ -577,18 +577,18 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-purple-600 rounded-lg mr-4">
                 <Users className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {adminStats.totalAttendees}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Attendees</div>
                 {adminStats.monthlyGrowth.attendees > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
+                  <div className="text-xs text-green-600 flex items-center mt-1">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +{adminStats.monthlyGrowth.attendees} this month
                   </div>
@@ -597,17 +597,17 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-orange-600 rounded-lg mr-4">
                 <UserCheck className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {adminStats.totalCheckedIn}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Check-ins</div>
-                <div className="text-xs text-gray-500 mt-1 bg-gray-50 px-2 py-1 rounded-full">
+                <div className="text-xs text-gray-500 mt-1">
                   {adminStats.totalAttendees > 0 
                     ? `${Math.round((adminStats.totalCheckedIn / adminStats.totalAttendees) * 100)}% rate`
                     : '0% rate'
@@ -617,18 +617,18 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-indigo-600 rounded-lg mr-4">
                 <Eye className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {adminStats.totalUsers}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Users</div>
                 {adminStats.monthlyGrowth.users > 0 && (
-                  <div className="text-xs text-green-600 flex items-center mt-1 bg-green-50 px-2 py-1 rounded-full">
+                  <div className="text-xs text-green-600 flex items-center mt-1">
                     <TrendingUp className="h-3 w-3 mr-1" />
                     +{adminStats.monthlyGrowth.users} this month
                   </div>
@@ -796,13 +796,13 @@ export default function Dashboard({ userCompany }: DashboardProps) {
 
         {/* Company Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-blue-600 rounded-lg mr-4">
                 <Calendar className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {companyStats.totalEvents}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Total Events</div>
@@ -810,13 +810,13 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-green-600 rounded-lg mr-4">
                 <Users className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {companyStats.totalAttendees}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Total Attendees</div>
@@ -824,17 +824,17 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-purple-600 rounded-lg mr-4">
                 <UserCheck className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {companyStats.totalCheckedIn}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Total Check-ins</div>
-                <div className="text-xs text-gray-500 mt-1 bg-gray-50 px-2 py-1 rounded-full">
+                <div className="text-xs text-gray-500 mt-1">
                   {companyStats.totalAttendees > 0 
                     ? `${Math.round((companyStats.totalCheckedIn / companyStats.totalAttendees) * 100)}% rate`
                     : '0% rate'
@@ -844,13 +844,13 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 card-hover">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
             <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl shadow-lg mr-4">
+              <div className="p-3 bg-orange-600 rounded-lg mr-4">
                 <TrendingUp className="h-8 w-8 text-white" />
               </div>
               <div>
-                <div className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                <div className="text-3xl font-bold text-gray-900">
                   {companyStats.upcomingEvents}
                 </div>
                 <div className="text-sm text-gray-600 font-medium">Upcoming Events</div>
