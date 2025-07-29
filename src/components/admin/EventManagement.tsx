@@ -151,9 +151,10 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
         if (error) throw error
 
         // Generate QR code for event registration
-        const baseUrl = 'https://nw.hopto.org'
-      // OVERIDE const registrationUrl = `${window.location.origin}/public/register/${data[0].id}`
-        const registrationUrl = `${baseUrl}/public/register/${data[0].id}`
+        // const baseUrl = 'https://nw.hopto.org'
+      // OVERIDE 
+        const registrationUrl = `${window.location.origin}/public/register/${data[0].id}`
+      //  const registrationUrl = `${baseUrl}/public/register/${data[0].id}`
         const qrCodeDataUrl = await QRCodeLib.toDataURL(registrationUrl, {
           width: 300,
           margin: 2,
@@ -220,9 +221,10 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   }
 
   const getRegistrationUrl = (eventId: string) => {
-    const baseUrl = 'https://nw.hopto.org'
-    return `${baseUrl}/public/register/${eventId}`
-    // OVERIDE return `${window.location.origin}/public/register/${eventId}`
+   // const baseUrl = 'https://nw.hopto.org'
+  //  return `${baseUrl}/public/register/${eventId}`
+    // OVERIDE 
+    return `${window.location.origin}/public/register/${eventId}`
   }
 
   const downloadQRCode = (event: Event) => {
