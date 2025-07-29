@@ -354,14 +354,6 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           gradient: 'from-green-500 to-emerald-500'
         },
         {
-          name: 'Check-in System',
-          path: '/admin/checkin',
-          icon: QrCode,
-          description: 'Scan QR codes for check-in',
-          color: 'bg-gradient-to-br from-purple-500 to-indigo-500',
-          gradient: 'from-purple-500 to-indigo-500'
-        },
-        {
           name: 'Seating Arrangement',
           path: '/admin/seating',
           icon: MapPin,
@@ -369,6 +361,15 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           color: 'bg-gradient-to-br from-orange-500 to-red-500',
           gradient: 'from-orange-500 to-red-500'
         },
+        {
+          name: 'Check-in System',
+          path: '/admin/checkin',
+          icon: QrCode,
+          description: 'Scan QR codes for check-in',
+          color: 'bg-gradient-to-br from-purple-500 to-indigo-500',
+          gradient: 'from-purple-500 to-indigo-500'
+        },
+        
         {
           name: 'Event Gallery',
           path: '/admin/gallery',
