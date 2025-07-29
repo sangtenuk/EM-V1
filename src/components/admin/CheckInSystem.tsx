@@ -103,8 +103,8 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
     try {
       
       // OVERIDE const checkInUrl = `${window.location.origin}/admin/checkin?event=${selectedEventId}`
-      const baseUrl = 'https://nw.hopto.org/'
-      const checkInUrl = `${baseUrl}//admin/checkin?event=${selectedEventId}`
+      const baseUrl = 'https://nw.hopto.org'
+      const checkInUrl = `${baseUrl}/admin/checkin?event=${selectedEventId}`
       const qrDataUrl = await QRCodeLib.toDataURL(checkInUrl, {
         width: 200,
         margin: 2,
