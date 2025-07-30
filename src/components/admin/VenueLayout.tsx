@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { MapPin, Users, Edit, Trash2, Save, RotateCw, Plus, ZoomIn, ZoomOut, Move } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { RotateCw, Plus, ZoomIn, ZoomOut, Move, Edit, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -267,8 +267,7 @@ export default function VenueLayout({ eventId, userCompany, isAttendeeView = fal
       x: table.x,
       y: table.y,
       rotation: table.rotation,
-      width: table.width || 120,
-      height: table.height || 80
+
     }
     setShowTableModal(true)
   }
@@ -281,8 +280,7 @@ export default function VenueLayout({ eventId, userCompany, isAttendeeView = fal
       x: 100,
       y: 100,
       rotation: 0,
-      width: 120,
-      height: 80
+
     }
     setEditingTable(null)
     setShowTableModal(false)
