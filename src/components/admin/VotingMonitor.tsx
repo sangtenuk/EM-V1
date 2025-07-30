@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 /* import { Monitor, Vote, Trophy, Users, BarChart3 } from 'lucide-react' */
  import { Monitor, Vote, Trophy, BarChart3 } from 'lucide-react' 
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface VotingSession {
@@ -243,7 +243,7 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
                   >
                     <div className="flex-1 flex items-center justify-center">
                       <img
-                        src={photos[currentPhotoIndex]?.photo_url}
+                        src={getStorageUrl(photos[currentPhotoIndex]?.photo_url)}
                         alt={photos[currentPhotoIndex]?.title}
                         className="max-w-full max-h-full object-contain rounded-lg"
                       />
@@ -286,7 +286,7 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
                         {index + 1}
                       </div>
                       <img
-                        src={photo.photo_url}
+                        src={getStorageUrl(photo.photo_url)}
                         alt={photo.title}
                         className="w-16 h-16 object-cover rounded-lg"
                       />

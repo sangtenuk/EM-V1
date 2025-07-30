@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Upload, Image, Camera, CheckCircle } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -21,6 +21,8 @@ export default function GalleryUpload() {
   const [attendeeName, setAttendeeName] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [uploadCount, setUploadCount] = useState(0)
+  const [maxUploads] = useState(3)
 
   useEffect(() => {
     if (eventId) {
@@ -51,8 +53,29 @@ export default function GalleryUpload() {
       }
 
       setEvent(normalizedEvent)
+      
+      // Check upload count for this attendee
+      await checkUploadCount()
     } catch (error: any) {
       toast.error('Event not found')
+    }
+  }
+
+  const checkUploadCount = async () => {
+    if (!eventId) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('gallery_photos')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('attendee_name', attendeeName.trim() || 'Anonymous')
+
+      if (error) throw error
+      
+      setUploadCount(data?.length || 0)
+    } catch (error: any) {
+      console.error('Error checking upload count:', error)
     }
   }
 
@@ -78,6 +101,12 @@ export default function GalleryUpload() {
   const uploadPhoto = async () => {
     if (!selectedFile || !event) return
 
+    // Check upload limit
+    if (uploadCount >= maxUploads) {
+      toast.error(`You have reached the maximum upload limit of ${maxUploads} photos`)
+      return
+    }
+
     setUploading(true)
 
     try {
@@ -100,6 +129,7 @@ export default function GalleryUpload() {
         setSelectedFile(null)
         setPreviewUrl(null)
         setAttendeeName('')
+        setUploadCount(prev => prev + 1)
       }
       reader.readAsDataURL(selectedFile)
     } catch (error: any) {
@@ -233,6 +263,9 @@ export default function GalleryUpload() {
               <p>• Your photo will be added to the event gallery</p>
               <p>• Photos may be displayed during the event</p>
               <p>• By uploading, you consent to public display</p>
+              <p className="mt-2 text-blue-600 font-medium">
+                Uploads: {uploadCount}/{maxUploads} photos
+              </p>
             </div>
           </div>
         </div>

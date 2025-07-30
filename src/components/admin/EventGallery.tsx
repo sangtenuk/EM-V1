@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Image, QrCode, Shuffle, Download, Trash2 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { Image, QrCode, Shuffle, Download, Trash2, Maximize2, Minimize2 } from 'lucide-react'
+import { supabase, getStorageUrl } from '../../lib/supabase'
+
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
 
@@ -31,6 +32,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [isSlideshow, setIsSlideshow] = useState(false)
   const [galleryQR, setGalleryQR] = useState('')
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -148,15 +150,65 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
   }
 
   const SlideshowDisplay = () => (
-    <div className="h-full bg-black flex items-center justify-center relative">
+    <div className="h-full bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
       {photos.length > 0 ? (
-        <div className="relative w-full h-full">
-          <img
-            src={photos[currentSlideIndex]?.photo_url}
-            alt="Gallery"
-            className="w-full h-full object-contain"
-          />
-          <div className="absolute bottom-8 left-8 text-white bg-black bg-opacity-50 rounded-lg p-4">
+        <>
+          {/* 3D Wall of Images */}
+          <div className="absolute inset-0 perspective-1000">
+            {photos.map((photo, index) => {
+              const isActive = index === currentSlideIndex;
+              const row = Math.floor(index / 4); // 4 images per row
+              const col = index % 4;
+              const centerX = (col - 1.5) * 200; // Center the grid
+              const centerY = (row - Math.floor(photos.length / 8)) * 200; // Center vertically
+              const depth = isActive ? 400 : 100 + (index * 50); // Active image comes forward
+              const scale = isActive ? 1.2 : 0.8;
+              
+              return (
+                <div
+                  key={photo.id}
+                  className={`absolute transition-all duration-1000 ease-out ${
+                    isActive ? 'z-50 opacity-100' : 'z-10 opacity-60'
+                  }`}
+                  style={{
+                    left: `calc(50% + ${centerX}px)`,
+                    top: `calc(50% + ${centerY}px)`,
+                    transform: `translateZ(${depth}px) scale(${scale})`,
+                    animation: isActive 
+                      ? 'activeImage 6s ease-in-out infinite' 
+                      : 'wallFloat 4s ease-in-out infinite'
+                  }}
+                >
+                  <div className="relative group">
+                    <img
+                      src={getStorageUrl(photo.photo_url)}
+                      alt="Gallery"
+                      className="w-40 h-40 object-cover rounded-xl shadow-2xl border-4 border-white/20 hover:border-white/40 transition-all duration-500 hover:scale-110"
+                      style={{
+                        filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.3))',
+                        animation: isActive 
+                          ? 'imagePulse 3s ease-in-out infinite' 
+                          : 'gentleFloat 4s ease-in-out infinite'
+                      }}
+                    />
+                    {isActive && (
+                      <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-white text-center min-w-[200px]">
+                        <div className="text-sm font-semibold">
+                          {photo.attendee_name || 'Anonymous'}
+                        </div>
+                        <div className="text-xs opacity-80">
+                          {new Date(photo.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Navigation Controls */}
+          <div className="absolute bottom-8 left-8 text-white bg-black/50 backdrop-blur-sm rounded-lg p-4">
             <div className="text-lg font-semibold">
               {photos[currentSlideIndex]?.attendee_name || 'Anonymous'}
             </div>
@@ -164,17 +216,63 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
               {new Date(photos[currentSlideIndex]?.created_at).toLocaleString()}
             </div>
           </div>
-          <div className="absolute bottom-8 right-8 text-white bg-black bg-opacity-50 rounded-lg px-4 py-2">
+          
+          <div className="absolute bottom-8 right-8 text-white bg-black/50 backdrop-blur-sm rounded-lg px-4 py-2">
             {currentSlideIndex + 1} / {photos.length}
           </div>
-        </div>
+          
+          {/* 3D Navigation Dots */}
+          <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 flex space-x-2">
+            {photos.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentSlideIndex(index)}
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  index === currentSlideIndex 
+                    ? 'bg-white scale-125' 
+                    : 'bg-white/50 hover:bg-white/75'
+                }`}
+              />
+            ))}
+          </div>
+        </>
       ) : (
-        <div className="text-white text-center">
-          <Image className="h-24 w-24 mx-auto mb-4 opacity-50" />
-          <h2 className="text-2xl font-bold mb-2">No Photos Yet</h2>
-          <p className="opacity-80">Waiting for attendees to upload photos...</p>
+        <div className="text-white text-center flex items-center justify-center h-full">
+          <div className="text-center">
+            <Image className="h-24 w-24 mx-auto mb-4 opacity-50 animate-pulse" />
+            <h2 className="text-2xl font-bold mb-2">No Photos Yet</h2>
+            <p className="opacity-80">Waiting for attendees to upload photos...</p>
+          </div>
         </div>
       )}
+      
+      {/* CSS Animations */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes activeImage {
+            0% { transform: translateZ(400px) scale(1.2); }
+            50% { transform: translateZ(600px) scale(1.4); }
+            100% { transform: translateZ(400px) scale(1.2); }
+          }
+          
+          @keyframes wallFloat {
+            0%, 100% { transform: translateZ(100px) scale(0.8); }
+            50% { transform: translateZ(200px) scale(0.9); }
+          }
+          
+          @keyframes imagePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+          }
+          
+          @keyframes gentleFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+          }
+          
+          .perspective-1000 { perspective: 1000px; }
+        `
+      }} />
     </div>
   )
 
@@ -200,6 +298,14 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
             {isSlideshow ? 'Stop Slideshow' : 'Start Slideshow'}
+          </button>
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            disabled={photos.length === 0}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
+            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           </button>
         </div>
       </div>
@@ -264,14 +370,16 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
         </div>
 
         {/* Display */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Image className="h-6 w-6 mr-2" />
-              Gallery Display
-            </h2>
+        <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'lg:col-span-2'}`}>
+          <div className={`${isFullscreen ? 'h-full' : 'bg-white rounded-lg shadow-md p-6'}`}>
+            {!isFullscreen && (
+              <h2 className="text-xl font-semibold mb-4 flex items-center">
+                <Image className="h-6 w-6 mr-2" />
+                Gallery Display
+              </h2>
+            )}
             
-            <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4">
+            <div className={`${isFullscreen ? 'h-full' : 'aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4'}`}>
               {selectedEventId ? (
                 <SlideshowDisplay />
               ) : (

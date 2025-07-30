@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { MapPin, Plus, Users, Edit, Trash2, Save, Shuffle } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import VenueLayout from './VenueLayout'
 
 interface Event {
   id: string
@@ -25,6 +26,7 @@ interface Attendee {
   name: string
   company: string | null
   table_assignment: string | null
+  identification_number: string
 }
 
 interface SeatingArrangementProps {
@@ -39,6 +41,7 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
   const [showTableModal, setShowTableModal] = useState(false)
   const [editingTable, setEditingTable] = useState<Table | null>(null)
   const [draggedAttendee, setDraggedAttendee] = useState<Attendee | null>(null)
+  const [loading, setLoading] = useState(true)
   const [tableForm, setTableForm] = useState({
     table_number: 1,
     table_type: 'Regular',
@@ -59,6 +62,7 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
   }, [])
 
   useEffect(() => {
+    console.log('Selected event changed:', selectedEventId)
     if (selectedEventId) {
       fetchTables()
       fetchAttendees()
@@ -67,6 +71,7 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
 
   const fetchEvents = async () => {
     try {
+      setLoading(true)
       let query = supabase.from('events').select(`
           id,
           name,
@@ -89,6 +94,7 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
         company: Array.isArray(event.company) ? event.company[0] : event.company
       })) || []
       
+      console.log('Fetched events:', transformedData) // Debug log
       setEvents(transformedData)
 
       // Auto-select first event for company users
@@ -96,12 +102,16 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
         setSelectedEventId(transformedData[0].id)
       }
     } catch (error: any) {
+      console.error('Error fetching events:', error) // Debug log
       toast.error('Error fetching events: ' + error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
   const fetchTables = async () => {
     try {
+      console.log('Fetching tables for event:', selectedEventId)
       const { data, error } = await supabase
         .from('tables')
         .select('*')
@@ -109,31 +119,37 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
         .order('table_number')
 
       if (error) throw error
-      setTables(data)
+      console.log('Fetched tables:', data)
+      setTables(data || [])
     } catch (error: any) {
+      console.error('Error fetching tables:', error)
       toast.error('Error fetching tables: ' + error.message)
     }
   }
 
   const fetchAttendees = async () => {
     try {
+      console.log('Fetching attendees for event:', selectedEventId)
       const { data, error } = await supabase
         .from('attendees')
-        .select('id, name, company, table_assignment')
+        .select('*')
         .eq('event_id', selectedEventId)
+        .order('name')
 
       if (error) throw error
-      setAttendees(data)
+      console.log('Fetched attendees:', data)
+      setAttendees(data || [])
     } catch (error: any) {
+      console.error('Error fetching attendees:', error)
       toast.error('Error fetching attendees: ' + error.message)
     }
   }
 
   const handleTableSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
     try {
       if (editingTable) {
+        // Update table
         const { error } = await supabase
           .from('tables')
           .update({
@@ -144,30 +160,31 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
           .eq('id', editingTable.id)
 
         if (error) throw error
-        toast.success('Table updated successfully')
+        toast.success('Table updated successfully!')
       } else {
-        // Create multiple tables
-        const tablesToInsert = []
-        const startingNumber = tableForm.table_number
-        
+        // Create multiple tables based on quantity
+        const tablesToCreate = []
         for (let i = 0; i < tableForm.quantity; i++) {
-          tablesToInsert.push({
+          tablesToCreate.push({
             event_id: selectedEventId,
-            table_number: startingNumber + i,
+            table_number: tableForm.table_number + i,
             table_type: tableForm.table_type,
-            capacity: tableForm.capacity
+            capacity: tableForm.capacity,
+            x: 100 + (i * 150),
+            y: 100 + (i * 100),
+            rotation: 0
           })
         }
 
         const { error } = await supabase
           .from('tables')
-          .insert(tablesToInsert)
+          .insert(tablesToCreate)
 
         if (error) throw error
-        toast.success(`${tableForm.quantity} table(s) created successfully`)
+        toast.success(`${tableForm.quantity} table(s) created successfully!`)
       }
 
-      resetTableForm()
+      setShowTableModal(false)
       fetchTables()
     } catch (error: any) {
       toast.error('Error saving table: ' + error.message)
@@ -297,37 +314,25 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
           .eq('id', assignment.attendeeId)
       }
 
-      toast.success(`${assignments.length} attendees randomly assigned to regular tables`)
+      toast.success(`${assignments.length} attendees randomly assigned to tables`)
       fetchAttendees()
     } catch (error: any) {
       toast.error('Error randomizing seating: ' + error.message)
     }
   }
 
-  // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, attendee: Attendee) => {
     setDraggedAttendee(attendee)
-    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', attendee.id)
   }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
   }
 
   const handleDrop = async (e: React.DragEvent, tableNumber: number) => {
     e.preventDefault()
-    
     if (!draggedAttendee) return
-
-    const table = tables.find(t => t.table_number === tableNumber)
-    if (!table) return
-
-    const currentAttendees = getTableAttendees(tableNumber)
-    if (currentAttendees.length >= table.capacity) {
-      toast.error('Table is full')
-      return
-    }
 
     await assignAttendeeToTable(draggedAttendee.id, tableNumber)
     setDraggedAttendee(null)
@@ -335,11 +340,99 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
 
   const handleDropUnassigned = async (e: React.DragEvent) => {
     e.preventDefault()
-    
     if (!draggedAttendee) return
 
     await assignAttendeeToTable(draggedAttendee.id, null)
     setDraggedAttendee(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading events...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!selectedEventId) {
+    return (
+      <div>
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Seating Arrangement</h1>
+            <p className="text-gray-600 mt-2">Manage table layouts and assign attendees to tables</p>
+          </div>
+        </div>
+
+        {/* Event Selection */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Event
+              </label>
+              {events.length === 0 ? (
+                <div className="w-full px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-md text-yellow-800">
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    No events found. {userCompany ? 'Create an event first to manage seating.' : 'Please create events to manage seating arrangements.'}
+                  </div>
+                </div>
+              ) : userCompany && events.length === 1 ? (
+                <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-900">
+                  {events[0].name}
+                </div>
+              ) : (
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Choose an event to manage seating</option>
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {userCompany ? event.name : `${event.name} (${event.company.name})`}
+                    </option>
+                  ))}
+                </select>
+              )}
+              
+              {events.length > 0 && (
+                <div className="mt-2 text-sm text-gray-600">
+                  {events.length} event{events.length !== 1 ? 's' : ''} available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {events.length === 0 ? (
+          <div className="text-center py-12">
+            <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Events Available</h3>
+            <p className="text-gray-600 mb-4">You need to create events first before managing seating arrangements.</p>
+            <a
+              href="/admin/events"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Event
+            </a>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Select an Event</h3>
+            <p className="text-gray-600">Choose an event from the dropdown above to manage seating arrangements</p>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -347,43 +440,36 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Seating Arrangement</h1>
-          <p className="text-gray-600 mt-2">Manage tables and assign attendees</p>
+          <p className="text-gray-600 mt-2">Manage table layouts and assign attendees to tables</p>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={() => window.open('/admin/events', '_blank')}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Create Event & Tables
-          </button>
-          <button
-            onClick={randomizeSeating}
-            disabled={!selectedEventId || unassignedAttendees.length === 0}
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center disabled:opacity-50"
-          >
-            <Shuffle className="h-5 w-5 mr-2" />
-            Randomize Seating
-          </button>
-          <button
-            onClick={() => setShowTableModal(true)}
-            disabled={!selectedEventId}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center disabled:opacity-50"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Table
-          </button>
-        </div>
+      </div>
+
+      {/* Debug Info */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+        <h3 className="font-semibold text-yellow-800">Debug Info:</h3>
+        <p className="text-sm text-yellow-700">Selected Event ID: {selectedEventId}</p>
+        <p className="text-sm text-yellow-700">Tables Count: {tables.length}</p>
+        <p className="text-sm text-yellow-700">Attendees Count: {attendees.length}</p>
+        <p className="text-sm text-yellow-700">Events Count: {events.length}</p>
       </div>
 
       {/* Event Selection */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {userCompany && events.length <= 1 ? 'Event' : 'Select Event'}
+              Select Event
             </label>
-            {userCompany && events.length === 1 ? (
+            {events.length === 0 ? (
+              <div className="w-full px-3 py-2 bg-yellow-50 border border-yellow-300 rounded-md text-yellow-800">
+                <div className="flex items-center">
+                  <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  No events found. {userCompany ? 'Create an event first to manage seating.' : 'Please create events to manage seating arrangements.'}
+                </div>
+              </div>
+            ) : userCompany && events.length === 1 ? (
               <div className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-gray-900">
                 {events[0].name}
               </div>
@@ -393,13 +479,19 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
                 onChange={(e) => setSelectedEventId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {!userCompany && <option value="">Choose an event</option>}
+                <option value="">Choose an event to manage seating</option>
                 {events.map((event) => (
                   <option key={event.id} value={event.id}>
                     {userCompany ? event.name : `${event.name} (${event.company.name})`}
                   </option>
                 ))}
               </select>
+            )}
+            
+            {events.length > 0 && (
+              <div className="mt-2 text-sm text-gray-600">
+                {events.length} event{events.length !== 1 ? 's' : ''} available
+              </div>
             )}
           </div>
           
@@ -408,10 +500,10 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
               <div className="bg-blue-50 rounded-lg p-4 w-full">
                 <div className="text-sm text-blue-600 font-medium">Seating Summary</div>
                 <div className="text-2xl font-bold text-blue-900">
-                  {tables.reduce((sum, table) => sum + table.capacity, 0)} seats
+                  {tables.length} tables
                 </div>
                 <div className="text-sm text-blue-600">
-                  {tables.length} tables • {attendees.filter(a => a.table_assignment).length} assigned
+                  {attendees.filter(a => a.table_assignment).length} assigned
                 </div>
               </div>
             </div>
@@ -420,21 +512,141 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
       </div>
 
       {selectedEventId && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Table Layout */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <MapPin className="h-6 w-6 mr-2" />
-              Table Layout
-            </h2>
-            
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-              {tables.map((table) => {
+        <>
+          {/* Venue Layout */}
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Venue Layout</h2>
+              <button
+                onClick={() => {
+                  setEditingTable(null)
+                  resetTableForm()
+                  setShowTableModal(true)
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Table
+              </button>
+            </div>
+            {selectedEventId ? (
+              <VenueLayout 
+                eventId={selectedEventId} 
+                userCompany={userCompany}
+                isAttendeeView={false}
+              />
+            ) : (
+              <div className="min-h-[400px] bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                <div className="text-center">
+                  <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">Please select an event to view venue layout</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Attendee Assignment */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            {/* Unassigned Attendees */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Unassigned Attendees</h2>
+                <div className="flex gap-2">
+                  {attendees.length === 0 && (
+                    <button
+                      onClick={() => window.open(`/admin/checkin`, '_blank')}
+                      className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 flex items-center text-sm"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Attendees
+                    </button>
+                  )}
+                  <button
+                    onClick={randomizeSeating}
+                    disabled={attendees.length === 0}
+                    className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Shuffle className="h-3 w-3 mr-1" />
+                    Randomize
+                  </button>
+                </div>
+              </div>
+              
+              <div
+                className="min-h-[200px] border-2 border-dashed border-gray-300 rounded-lg p-4"
+                onDragOver={handleDragOver}
+                onDrop={handleDropUnassigned}
+              >
+                {attendees.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No attendees found for this event</p>
+                    <p className="text-sm mt-2">Attendees will appear here when they register</p>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs text-gray-400">You can:</p>
+                      <div className="flex flex-col gap-2">
+                        <a
+                          href="/admin/checkin"
+                          className="text-blue-600 hover:text-blue-700 text-sm underline"
+                        >
+                          Add attendees manually in Check-In System
+                        </a>
+                        <a
+                          href={`/public/register/${selectedEventId}`}
+                          target="_blank"
+                          className="text-blue-600 hover:text-blue-700 text-sm underline"
+                        >
+                          Share registration link with attendees
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ) : unassignedAttendees.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>All attendees assigned</p>
+                  </div>
+                ) : (
+                  unassignedAttendees.map((attendee) => (
+                    <div
+                      key={attendee.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, attendee)}
+                      className="bg-gray-50 p-3 rounded-lg mb-2 cursor-move hover:bg-gray-100"
+                    >
+                      <div className="font-medium">{attendee.name}</div>
+                      <div className="text-sm text-gray-600">ID: {attendee.identification_number}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Table Assignments */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold mb-4">Table Assignments</h2>
+              
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {tables.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <MapPin className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No tables created yet</p>
+                    <p className="text-sm mt-2">Create tables to start assigning attendees</p>
+                    <button
+                      onClick={() => setShowTableModal(true)}
+                      className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center mx-auto"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Table
+                    </button>
+                  </div>
+                ) : (
+                  tables.map((table) => {
                 const tableAttendees = getTableAttendees(table.table_number)
                 return (
                   <div
                     key={table.id}
-                    className={`relative p-4 rounded-lg text-white ${tableColors[table.table_type as keyof typeof tableColors]} hover:opacity-80 transition-opacity`}
+                        className={`${tableColors[table.table_type as keyof typeof tableColors]} text-white rounded-lg p-4`}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, table.table_number)}
                   >
@@ -443,242 +655,108 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
                         <div className="font-bold text-lg">Table {table.table_number}</div>
                         <div className="text-sm opacity-90">{table.table_type}</div>
                       </div>
-                      <div className="flex space-x-1">
-                        <button
-                          onClick={() => openEditModal(table)}
-                          className="text-white hover:text-gray-200 transition-colors"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => deleteTable(table.id)}
-                          className="text-white hover:text-red-200 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                          <div className="text-sm">
+                            {tableAttendees.length}/{table.capacity}
                       </div>
                     </div>
-                    <div className="text-sm">
-                      {tableAttendees.length} / {table.capacity} seats
-                    </div>
-                    <div className="mt-2 space-y-1">
-                      {tableAttendees.slice(0, 3).map((attendee) => (
+                        
+                        <div className="space-y-2">
+                          {tableAttendees.map((attendee) => (
                         <div 
                           key={attendee.id} 
-                          className="text-xs bg-white bg-opacity-20 rounded px-2 py-1 truncate cursor-move"
                           draggable
                           onDragStart={(e) => handleDragStart(e, attendee)}
+                              className="bg-white/20 p-2 rounded cursor-move hover:bg-white/30"
                         >
-                          {attendee.name}
+                              <div className="font-medium">{attendee.name}</div>
+                              <div className="text-xs opacity-90">ID: {attendee.identification_number}</div>
                         </div>
                       ))}
-                      {tableAttendees.length > 3 && (
-                        <div className="text-xs opacity-75">
-                          +{tableAttendees.length - 3} more
+                          
+                          {tableAttendees.length === 0 && (
+                            <div className="text-center py-4 text-white/70">
+                              <p>No attendees assigned</p>
                         </div>
                       )}
                     </div>
                   </div>
                 )
-              })}
-            </div>
-
-            {tables.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <MapPin className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p>No tables created yet</p>
-                <p className="text-sm">Add tables to start arranging seating</p>
-              </div>
-            )}
-
-            {/* Legend */}
-            <div className="border-t pt-4">
-              <h3 className="font-medium mb-2">Table Types</h3>
-              <div className="flex flex-wrap gap-2">
-                {tableTypes.map((type) => (
-                  <div key={type} className="flex items-center">
-                    <div className={`w-4 h-4 rounded ${tableColors[type as keyof typeof tableColors]} mr-2`}></div>
-                    <span className="text-sm">{type}</span>
-                  </div>
-                ))}
+                  })
+                )}
               </div>
             </div>
           </div>
-
-          {/* Attendee Assignment */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Users className="h-6 w-6 mr-2" />
-              Unassigned Attendees
-            </h2>
-            
-            <div 
-              className="space-y-2 max-h-96 overflow-y-auto border-2 border-dashed border-gray-300 rounded-lg p-4 min-h-32"
-              onDragOver={handleDragOver}
-              onDrop={handleDropUnassigned}
-            >
-              {unassignedAttendees.map((attendee) => (
-                <div 
-                  key={attendee.id} 
-                  className="p-3 border border-gray-200 rounded-lg cursor-move hover:bg-gray-50 transition-colors"
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, attendee)}
-                >
-                  <div className="font-medium text-gray-900">{attendee.name}</div>
-                  {attendee.company && (
-                    <div className="text-sm text-gray-600">{attendee.company}</div>
-                  )}
-                  <select
-                    value=""
-                    onChange={(e) => assignAttendeeToTable(attendee.id, e.target.value ? parseInt(e.target.value) : null)}
-                    className="mt-2 w-full text-sm px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <option value="">Assign to table...</option>
-                    {tables.map((table) => {
-                      const tableAttendees = getTableAttendees(table.table_number)
-                      const isAvailable = tableAttendees.length < table.capacity
-                      return (
-                        <option 
-                          key={table.id} 
-                          value={table.table_number}
-                          disabled={!isAvailable}
-                        >
-                          Table {table.table_number} ({table.table_type}) - {tableAttendees.length}/{table.capacity}
-                          {!isAvailable && ' (Full)'}
-                        </option>
-                      )
-                    })}
-                  </select>
-                </div>
-              ))}
-              
-              {unassignedAttendees.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>All attendees assigned</p>
-                  <p className="text-xs mt-1">Drag attendees here to unassign</p>
-                </div>
-              )}
-            </div>
-
-            {/* Assigned Attendees Summary */}
-            {attendees.filter(a => a.table_assignment).length > 0 && (
-              <div className="mt-6 pt-4 border-t">
-                <h3 className="font-medium mb-2">Assigned Attendees</h3>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {attendees.filter(a => a.table_assignment).map((attendee) => (
-                    <div key={attendee.id} className="flex justify-between items-center text-sm">
-                      <span>{attendee.name}</span>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600">Table {attendee.table_assignment}</span>
-                        <button
-                          onClick={() => assignAttendeeToTable(attendee.id, null)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        </>
       )}
 
       {/* Table Modal */}
       {showTableModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
-              {editingTable ? 'Edit Table' : 'Add New Table'}
-            </h2>
+            <h3 className="text-lg font-bold mb-4">
+              {editingTable ? 'Edit Table' : 'Add Table'}
+            </h3>
             <form onSubmit={handleTableSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Table Number
-                </label>
+                <label className="block text-sm font-medium mb-1">Table Number</label>
                 <input
                   type="number"
                   value={tableForm.table_number}
-                  onChange={(e) => setTableForm({ ...tableForm, table_number: parseInt(e.target.value) || 1 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="1"
+                  onChange={(e) => setTableForm({ ...tableForm, table_number: parseInt(e.target.value) })}
+                  className="w-full border rounded px-3 py-2"
                   required
                 />
-                {!editingTable && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Starting table number (will increment for multiple tables)
-                  </p>
-                )}
               </div>
-
-              {!editingTable && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Quantity
-                  </label>
-                  <input
-                    type="number"
-                    value={tableForm.quantity}
-                    onChange={(e) => setTableForm({ ...tableForm, quantity: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="1"
-                    max="20"
-                    required
-                  />
-                  <p className="text-sm text-gray-600 mt-1">
-                    Number of tables to create with these settings
-                  </p>
-                </div>
-              )}
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Table Type
-                </label>
+                <label className="block text-sm font-medium mb-1">Table Type</label>
                 <select
                   value={tableForm.table_type}
                   onChange={(e) => setTableForm({ ...tableForm, table_type: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border rounded px-3 py-2"
                 >
-                  {tableTypes.map((type) => (
+                  {tableTypes.map(type => (
                     <option key={type} value={type}>{type}</option>
                   ))}
                 </select>
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Capacity
-                </label>
+                <label className="block text-sm font-medium mb-1">Capacity</label>
                 <input
                   type="number"
                   value={tableForm.capacity}
-                  onChange={(e) => setTableForm({ ...tableForm, capacity: parseInt(e.target.value) || 8 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setTableForm({ ...tableForm, capacity: parseInt(e.target.value) })}
+                  className="w-full border rounded px-3 py-2"
                   min="1"
-                  max="20"
                   required
                 />
               </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
+              {!editingTable && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    value={tableForm.quantity}
+                    onChange={(e) => setTableForm({ ...tableForm, quantity: parseInt(e.target.value) })}
+                    className="w-full border rounded px-3 py-2"
+                    min="1"
+                    max="10"
+                    required
+                  />
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={resetTableForm}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  onClick={() => setShowTableModal(false)}
+                  className="px-4 py-2 bg-gray-200 rounded"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
                 >
-                  <Save className="h-4 w-4 mr-2" />
-                  {editingTable ? 'Update Table' : `Create ${tableForm.quantity} Table${tableForm.quantity > 1 ? 's' : ''}`}
+                  {editingTable ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>

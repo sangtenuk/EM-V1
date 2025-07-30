@@ -1,7 +1,9 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Building2, Calendar, Users, QrCode, Monitor, Gift, Image, MapPin, BarChart3, Vote, Sparkles } from 'lucide-react'
+import { LogOut, Building2, Calendar, Users, QrCode, Monitor, Gift, Image, MapPin, BarChart3, Vote, Sparkles, Palette } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useGlobalModeStore, HybridMode } from '../lib/globalModeStore';
+import GlobalSearch from './admin/GlobalSearch'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -18,6 +20,7 @@ const navigation = [
   { name: 'Events', href: '/admin/events', icon: Calendar, color: 'from-green-500 to-emerald-500' },
   { name: 'Attendees', href: '/admin/attendees', icon: Users, color: 'from-orange-500 to-red-500' },
   { name: 'Check-in', href: '/admin/checkin', icon: QrCode, color: 'from-indigo-500 to-purple-500' },
+  { name: 'QR Generator', href: '/admin/qr-generator', icon: QrCode, color: 'from-emerald-500 to-green-500' },
   { name: 'Seating', href: '/admin/seating', icon: MapPin, color: 'from-pink-500 to-rose-500' },
   { name: 'Voting', href: '/admin/voting', icon: Vote, color: 'from-violet-500 to-purple-500' },
   { name: 'Lucky Draw', href: '/admin/lucky-draw', icon: Gift, color: 'from-yellow-500 to-orange-500' },
@@ -29,6 +32,7 @@ const navigation = [
 export default function Layout({ children, userCompany }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
+  const { mode, setMode } = useGlobalModeStore();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -42,18 +46,37 @@ export default function Layout({ children, userCompany }: LayoutProps) {
         <div className="flex h-full flex-col bg-white border-r border-gray-200 shadow-lg">
           {/* Header */}
           <div className="flex h-20 items-center justify-center border-b border-gray-200 bg-blue-600">
-            <div className="text-center">
+            <div className="text-center w-full">
               <div className="flex items-center justify-center mb-1">
                 <Sparkles className="h-8 w-8 text-white mr-2" />
-               <a href="/"> <h1 className="text-2xl font-bold text-white">EventPro</h1></a>
-                
+                <a href="/"> <h1 className="text-2xl font-bold text-white">EventPro</h1></a>
               </div>
               {userCompany && (
                 <p className="text-sm text-blue-100 truncate px-2 font-medium">{userCompany.company.name}</p>
-      
               )}
               <h6 className="text-sm text-blue-100 truncate px-10 font-small">powered by <i>sangtenuk</i></h6>
             </div>
+          </div>
+          {/* Data Mode Toggle (admin only) */}
+          {!userCompany && (
+            <div className="px-6 py-4 border-b border-gray-200 bg-white">
+              <label htmlFor="hybrid-mode-select" className="block text-xs font-bold text-gray-700 mb-1">Data Mode</label>
+              <select
+                id="hybrid-mode-select"
+                value={mode}
+                onChange={e => setMode(e.target.value as HybridMode)}
+                className="w-full px-2 py-1 border border-gray-300 rounded-md text-gray-900 text-xs"
+              >
+                <option value="online">Online (Supabase)</option>
+                <option value="offline">Offline (Local Only)</option>
+                <option value="hybrid">Hybrid (Sync)</option>
+              </select>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="px-4 py-2 border-b border-gray-200">
+            <GlobalSearch userCompany={userCompany} />
           </div>
 
           {/* Navigation */}

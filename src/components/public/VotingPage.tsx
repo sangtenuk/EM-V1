@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { Vote, CheckCircle, Users, BarChart3 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
 interface VotingSession {
@@ -372,7 +372,7 @@ export default function VotingPage() {
           {photos.map((photo) => (
             <div key={photo.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
               <img
-                src={photo.photo_url}
+                src={getStorageUrl(photo.photo_url)}
                 alt={photo.title}
                 className="w-full h-48 md:h-64 object-cover"
               />

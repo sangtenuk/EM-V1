@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom' 
-/* import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom' */
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { supabase } from './lib/supabase'
 import DemoNotice from './components/DemoNotice'
@@ -18,10 +17,14 @@ import SeatingArrangement from './components/admin/SeatingArrangement'
 import MonthlyProgress from './components/admin/MonthlyProgress'
 import VotingAdmin from './components/admin/VotingAdmin'
 import VotingMonitor from './components/admin/VotingMonitor'
+
 import Registration from './components/public/Registration'
 import Ticket from './components/public/Ticket'
 import GalleryUpload from './components/public/GalleryUpload'
 import VotingPage from './components/public/VotingPage'
+import AttendeeVenueView from './components/public/AttendeeVenueView'
+import CheckIn from './components/public/CheckIn'
+import QRCodeGenerator from './components/admin/QRCodeGenerator'
 
 function App() {
   const [user, setUser] = useState<any>(null)
@@ -33,23 +36,29 @@ function App() {
     // Check if Supabase is properly configured
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-    
-    if (!supabaseUrl || !supabaseKey || 
-        supabaseUrl.includes('your-project') || 
-        supabaseKey.includes('your-anon-key')) {
+
+    if (
+      !supabaseUrl ||
+      !supabaseKey ||
+      supabaseUrl.includes('your-project') ||
+      supabaseKey.includes('your-anon-key')
+    ) {
       setHasValidConfig(false)
       setLoading(false)
       return
     }
 
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      setLoading(false)
-    }).catch(() => {
-      setHasValidConfig(false)
-      setLoading(false)
-    })
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      })
+      .catch((error) => {
+        setHasValidConfig(false)
+        setLoading(false)
+      })
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -62,6 +71,7 @@ function App() {
     })
 
     return () => subscription.unsubscribe()
+    // eslint-disable-next-line
   }, [])
 
   const fetchUserCompany = async (userId: string) => {
@@ -76,14 +86,11 @@ function App() {
         .maybeSingle()
 
       if (error) {
-        console.error('Error fetching user company:', error)
         return
       }
 
       setUserCompany(data)
-    } catch (error) {
-      console.error('Error fetching user company:', error)
-    }
+    } catch (error) {}
   }
 
   // Show demo notice if Supabase isn't configured
@@ -107,38 +114,45 @@ function App() {
           {/* Public Routes */}
           <Route path="/public/register/:eventId" element={<Registration />} />
           <Route path="/public/ticket/:attendeeId" element={<Ticket />} />
+          <Route path="/public/checkin/:eventId" element={<CheckIn />} />
           <Route path="/public/gallery/:eventId" element={<GalleryUpload />} />
           <Route path="/public/voting/:sessionId" element={<VotingPage />} />
-          
+          <Route path="/public/venue/:eventId/:attendeeId" element={<AttendeeVenueView />} />
+
           {/* Auth Routes */}
           <Route path="/auth" element={!user ? <AuthPage /> : <Navigate to="/admin" />} />
-          
+
           {/* Protected Admin Routes */}
-          <Route path="/admin/*" element={
-            user ? (
-              <Layout userCompany={userCompany}>
-                <Routes>
-                  <Route path="/" element={<Dashboard userCompany={userCompany} />} />
-                  <Route path="/companies" element={<CompanyManagement />} />
-                  <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
-                  <Route path="/progress" element={<MonthlyProgress />} />
-                  <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
-                  <Route path="/checkin" element={<CheckInSystem userCompany={userCompany} />} />
-                  <Route path="/welcome-monitor" element={<WelcomeMonitor userCompany={userCompany} />} />
-                  <Route path="/lucky-draw" element={<LuckyDraw userCompany={userCompany} />} />
-                  <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
-                  <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
-                  <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
-                  <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
-                </Routes>
-              </Layout>
-            ) : (
-              <Navigate to="/auth" />
-            )
-          } />
-          
+          <Route
+            path="/admin/*"
+            element={
+              user ? (
+                <Layout userCompany={userCompany}>
+                  <Routes>
+                    <Route path="/" element={<Dashboard userCompany={userCompany} />} />
+                    <Route path="/companies" element={<CompanyManagement />} />
+                    <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
+                    <Route path="/progress" element={<MonthlyProgress />} />
+                    <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
+                    <Route path="/checkin" element={<CheckInSystem userCompany={userCompany} />} />
+                    <Route path="/welcome-monitor" element={<WelcomeMonitor userCompany={userCompany} />} />
+                    <Route path="/lucky-draw" element={<LuckyDraw userCompany={userCompany} />} />
+                    <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
+                    <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
+                    <Route path="/qr-generator" element={<QRCodeGenerator userCompany={userCompany} />} />
+                    <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
+                    <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
+                    <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
+                  </Routes>
+                </Layout>
+              ) : (
+                <Navigate to="/auth" />
+              )
+            }
+          />
+
           {/* Default redirect */}
-          <Route path="/" element={<Navigate to={user ? "/admin" : "/auth"} />} />
+          <Route path="/" element={<Navigate to={user ? '/admin' : '/auth'} />} />
         </Routes>
       </div>
     </Router>

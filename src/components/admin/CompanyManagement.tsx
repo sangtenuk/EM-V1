@@ -1,8 +1,10 @@
 /* import React, { useState, useEffect } from 'react' */
  import { useState, useEffect } from 'react' 
 import { Plus, Building2, Calendar, Users, UserPlus, Edit, Trash2 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import { create } from 'zustand';
+import { hybridDB } from '../../lib/hybridDB';
 
 interface Company {
   id: string
@@ -10,6 +12,10 @@ interface Company {
   created_at: string
   event_count?: number
   attendee_count?: number
+  person_in_charge?: string
+  contact_number?: string
+  email?: string
+  logo?: string
 }
 
 interface CompanyUser {
@@ -20,6 +26,16 @@ interface CompanyUser {
   company: {
     name: string
   }
+}
+
+// Utility to generate a color from a string
+function stringToColor(str: string) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const color = `#${((hash >> 24) & 0xFF).toString(16).padStart(2, '0')}${((hash >> 16) & 0xFF).toString(16).padStart(2, '0')}${((hash >> 8) & 0xFF).toString(16).padStart(2, '0')}`;
+  return color;
 }
 
 export default function CompanyManagement() {
@@ -35,6 +51,16 @@ export default function CompanyManagement() {
     company_id: ''
   })
   const [loading, setLoading] = useState(true)
+  // Add new state for company details
+  const [companyForm, setCompanyForm] = useState({
+    name: '',
+    person_in_charge: '',
+    contact_number: '',
+    email: '',
+    logo: '',
+  })
+  // Add upload state
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     fetchCompanies()
@@ -98,17 +124,17 @@ export default function CompanyManagement() {
 
   const createCompany = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newCompanyName.trim()) return
+    if (!companyForm.name.trim()) return
 
     try {
       const { error } = await supabase
         .from('companies')
-        .insert([{ name: newCompanyName }])
+        .insert([{ ...companyForm }])
 
       if (error) throw error
 
       toast.success('Company created successfully!')
-      setNewCompanyName('')
+      setCompanyForm({ name: '', person_in_charge: '', contact_number: '', email: '', logo: '' })
       setShowModal(false)
       fetchCompanies()
     } catch (error: any) {
@@ -118,18 +144,18 @@ export default function CompanyManagement() {
 
   const editCompany = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newCompanyName.trim() || !editingCompany) return
+    if (!companyForm.name.trim() || !editingCompany) return
 
     try {
       const { error } = await supabase
         .from('companies')
-        .update({ name: newCompanyName })
+        .update({ ...companyForm })
         .eq('id', editingCompany.id)
 
       if (error) throw error
 
       toast.success('Company updated successfully!')
-      setNewCompanyName('')
+      setCompanyForm({ name: '', person_in_charge: '', contact_number: '', email: '', logo: '' })
       setEditingCompany(null)
       setShowModal(false)
       fetchCompanies()
@@ -158,7 +184,13 @@ export default function CompanyManagement() {
 
   const openEditModal = (company: Company) => {
     setEditingCompany(company)
-    setNewCompanyName(company.name)
+    setCompanyForm({
+      name: company.name || '',
+      person_in_charge: company.person_in_charge || '',
+      contact_number: company.contact_number || '',
+      email: company.email || '',
+      logo: company.logo || '',
+    })
     setShowModal(true)
   }
 
@@ -227,6 +259,39 @@ export default function CompanyManagement() {
     setShowModal(false)
   }
 
+  // Add logo upload handler
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      // Upload to Supabase Storage in 'logo/' folder
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo/${crypto.randomUUID()}.${fileExt}`;
+      const { data, error } = await supabase.storage.from('bucket').upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+      if (error) throw error;
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage.from('bucket').getPublicUrl(fileName);
+      const logoUrl = publicUrlData.publicUrl;
+      setCompanyForm({ ...companyForm, logo: logoUrl });
+      // Save a local copy in IndexedDB for offline mode
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        await hybridDB.table('company_logos').put({ id: fileName, base64 });
+      };
+      reader.readAsDataURL(file);
+      toast.success('Logo uploaded!');
+    } catch (err: any) {
+      toast.error('Error uploading logo: ' + err.message);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -271,7 +336,10 @@ export default function CompanyManagement() {
                 <div className="flex items-center">
                   <Building2 className="h-8 w-8 text-blue-600 mr-3" />
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900">{company.name}</h3>
+                    <div className="flex items-center mb-2">
+                      <span className="inline-block w-4 h-4 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: stringToColor(company.id) }} title="Company Color" />
+                      <h3 className="text-xl font-semibold text-gray-900">{company.name}</h3>
+                    </div>
                     <p className="text-sm text-gray-500">
                       Created {new Date(company.created_at).toLocaleDateString()}
                     </p>
@@ -464,21 +532,33 @@ export default function CompanyManagement() {
               {editingCompany ? 'Edit Company' : 'Create New Company'}
             </h2>
             <form onSubmit={editingCompany ? editCompany : createCompany}>
-              <div className="mb-4">
-                <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Company Name
-                </label>
-                <input
-                  type="text"
-                  id="companyName"
-                  value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter company name"
-                  required
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+                  <input type="text" className="w-full px-3 py-2 border rounded" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Person in Charge</label>
+                  <input type="text" className="w-full px-3 py-2 border rounded" value={companyForm.person_in_charge} onChange={e => setCompanyForm({ ...companyForm, person_in_charge: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
+                  <input type="text" className="w-full px-3 py-2 border rounded" value={companyForm.contact_number} onChange={e => setCompanyForm({ ...companyForm, contact_number: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" className="w-full px-3 py-2 border rounded" value={companyForm.email} onChange={e => setCompanyForm({ ...companyForm, email: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
+                  <input type="file" accept="image/*" onChange={handleLogoUpload} disabled={uploadingLogo} />
+                  {uploadingLogo && <div className="text-xs text-blue-500 mt-1">Uploading...</div>}
+                  {companyForm.logo && (
+                    <img src={getStorageUrl(companyForm.logo)} alt="Logo Preview" className="w-12 h-12 rounded-full object-cover mt-2" />
+                  )}
+                </div>
               </div>
-              <div className="flex justify-end space-x-3">
+              <div className="flex justify-end space-x-3 mt-6">
                 <button
                   type="button"
                   onClick={resetForm}

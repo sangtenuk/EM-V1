@@ -1,25 +1,20 @@
 /* import React, { useState, useEffect } from 'react' */
  import { useState, useEffect } from 'react' 
-import { Plus, Calendar, MapPin, Users, Edit, Trash2, ExternalLink, QrCode } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { Plus, Calendar, MapPin, Users, Edit, Trash2, ExternalLink, QrCode, Image } from 'lucide-react'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+
+import { useHybridDB, hybridDB, Event as HybridEvent } from '../../lib/hybridDB';
 import QRCodeLib from 'qrcode'
 
-interface Event {
-  id: string
-  company_id: string
-  name: string
-  description: string | null
-  date: string | null
-  location: string | null
-  max_attendees: number | null
-  created_at: string
-  company: {
-    name: string
-  }
-  attendee_count?: number
-  checked_in_count?: number
-  registration_qr?: string
+// Extend Event type for UI compatibility
+interface UIEvent extends HybridEvent {
+  company: { name: string };
+  attendee_count: number;
+  checked_in_count: number;
+  offline_qr?: string | null;
+  custom_background?: string | null;
+  custom_logo?: string | null;
 }
 
 interface Company {
@@ -31,11 +26,21 @@ interface EventManagementProps {
   userCompany?: any
 }
 
+// Utility to generate a color from a string (reuse from CompanyManagement)
+function stringToColor(str: string) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const color = `#${((hash >> 24) & 0xFF).toString(16).padStart(2, '0')}${((hash >> 16) & 0xFF).toString(16).padStart(2, '0')}${((hash >> 8) & 0xFF).toString(16).padStart(2, '0')}`;
+  return color;
+}
+
 export default function EventManagement({ userCompany }: EventManagementProps) {
-  const [events, setEvents] = useState<Event[]>([])
+  const [events, setEvents] = useState<UIEvent[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [editingEvent, setEditingEvent] = useState<Event | null>(null)
+  const [editingEvent, setEditingEvent] = useState<UIEvent | null>(null)
   const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
     company_id: '',
@@ -43,8 +48,13 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     description: '',
     date: '',
     location: '',
-    max_attendees: 1000
+    max_attendees: 1000,
+    mode: 'online' as 'offline' | 'online' | 'hybrid',
+    custom_background: '',
+    custom_logo: '',
   })
+
+  const { getEvents, syncEvents } = useHybridDB();
 
   useEffect(() => {
     fetchEvents()
@@ -52,50 +62,31 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   }, [])
 
   const fetchEvents = async () => {
+    setLoading(true);
     try {
-      let query = supabase.from('events').select(`
-          *,
-          company:companies(name)
-        `)
-
-      // Filter by company if user is a company user
-      if (userCompany) {
-        query = query.eq('company_id', userCompany.company_id)
-      }
-
-      const { data: eventsData, error } = await query.order('created_at', { ascending: false })
-
-      if (error) throw error
-
-      // Ensure company is a single object, not an array
-      const formattedEvents = eventsData?.map(event => ({
-        ...event,
-        company: Array.isArray(event.company) ? event.company[0] : event.company
-      })) || []
-
-      // Fetch attendee counts for each event
-      const eventsWithCounts = await Promise.all(
-        formattedEvents.map(async (event) => {
-          const { data: attendees } = await supabase
-            .from('attendees')
-            .select('id, checked_in')
-            .eq('event_id', event.id)
-
-          return {
-            ...event,
-            attendee_count: attendees?.length || 0,
-            checked_in_count: attendees?.filter(a => a.checked_in).length || 0
-          }
-        })
-      )
-
-      setEvents(eventsWithCounts)
+      const events = await getEvents(userCompany ? userCompany.company_id : undefined);
+      // Only add UI-specific properties if missing
+      const eventsWithCompany: UIEvent[] = events.map((event: any) => {
+        return {
+          ...event,
+          company: event.company && event.company.name ? event.company : { name: '' },
+          attendee_count: typeof event.attendee_count === 'number' ? event.attendee_count : 0,
+          checked_in_count: typeof event.checked_in_count === 'number' ? event.checked_in_count : 0,
+          description: event.description ?? null,
+          date: event.date ?? null,
+          location: event.location ?? null,
+          max_attendees: event.max_attendees ?? null,
+          registration_qr: event.registration_qr ?? null,
+          created_at: event.created_at ?? '',
+        };
+      });
+      setEvents(eventsWithCompany);
     } catch (error: any) {
-      toast.error('Error fetching events: ' + error.message)
+      toast.error('Error fetching events: ' + error.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const fetchCompanies = async () => {
     try {
@@ -116,83 +107,59 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.name.trim() || !formData.company_id) return
-
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.company_id) return;
     try {
       if (editingEvent) {
+        // Update event
         const { error } = await supabase
           .from('events')
-          .update({
-            company_id: formData.company_id,
-            name: formData.name,
-            description: formData.description || null,
-            date: formData.date || null,
-            location: formData.location || null,
-            max_attendees: formData.max_attendees
-          })
-          .eq('id', editingEvent.id)
-
-        if (error) throw error
-        toast.success('Event updated successfully!')
+          .update(formData)
+          .eq('id', editingEvent.id);
+        if (error) throw error;
+        toast.success('Event updated successfully!');
       } else {
+        // Create event
         const { data, error } = await supabase
           .from('events')
-          .insert([{
-            company_id: formData.company_id,
-            name: formData.name,
-            description: formData.description || null,
-            date: formData.date || null,
-            location: formData.location || null,
-            max_attendees: formData.max_attendees
-          }])
-          .select()
-
-        if (error) throw error
-
-        // Generate QR code for event registration
-        // const baseUrl = 'https://nw.hopto.org'
-      // OVERIDE 
-        const registrationUrl = `${window.location.origin}/public/register/${data[0].id}`
-      //  const registrationUrl = `${baseUrl}/public/register/${data[0].id}`
+          .insert([formData])
+          .select();
+        if (error) throw error;
+        
+        // Generate QR code for the new event
+        const registrationUrl = `${window.location.origin}/public/register/${data[0].id}`;
         const qrCodeDataUrl = await QRCodeLib.toDataURL(registrationUrl, {
           width: 300,
           margin: 2,
-          errorCorrectionLevel: 'M'
-        })
-
+          errorCorrectionLevel: 'M',
+        });
+        
         // Update event with QR code
         await supabase
           .from('events')
           .update({ registration_qr: qrCodeDataUrl })
-          .eq('id', data[0].id)
-
-        toast.success('Event created successfully!')
+          .eq('id', data[0].id);
+        
+        toast.success('Event created successfully!');
       }
-
-      resetForm()
-      fetchEvents()
+      resetForm();
+      fetchEvents();
     } catch (error: any) {
-      toast.error('Error saving event: ' + error.message)
+      toast.error('Error saving event: ' + error.message);
     }
   }
 
   const deleteEvent = async (eventId: string) => {
-    if (!confirm('Are you sure you want to delete this event? This will also delete all attendees.')) return
-
+    if (!confirm('Are you sure you want to delete this event? This will also delete all attendees.')) return;
     try {
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', eventId)
-
-      if (error) throw error
-      toast.success('Event deleted successfully!')
-      fetchEvents()
+      await hybridDB.events.delete(eventId);
+      await supabase.from('events').delete().eq('id', eventId);
+      toast.success('Event deleted successfully!');
+      fetchEvents();
     } catch (error: any) {
-      toast.error('Error deleting event: ' + error.message)
+      toast.error('Error deleting event: ' + error.message);
     }
-  }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -201,13 +168,16 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
       description: '',
       date: '',
       location: '',
-      max_attendees: 1000
+      max_attendees: 1000,
+      mode: 'online',
+      custom_background: '',
+      custom_logo: '',
     })
     setEditingEvent(null)
     setShowModal(false)
   }
 
-  const openEditModal = (event: Event) => {
+  const openEditModal = (event: UIEvent) => {
     setEditingEvent(event)
     setFormData({
       company_id: userCompany ? userCompany.company_id : event.company_id,
@@ -215,7 +185,10 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
       description: event.description || '',
       date: event.date ? new Date(event.date).toISOString().slice(0, 16) : '',
       location: event.location || '',
-      max_attendees: event.max_attendees || 1000
+      max_attendees: event.max_attendees || 1000,
+      mode: event.mode || 'online',
+      custom_background: event.custom_background || '',
+      custom_logo: event.custom_logo || '',
     })
     setShowModal(true)
   }
@@ -227,14 +200,17 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     return `${window.location.origin}/public/register/${eventId}`
   }
 
-  const downloadQRCode = (event: Event) => {
-    if (!event.registration_qr) return
+  const downloadQRCode = (event: UIEvent) => {
+    if (!event.registration_qr) return;
     
-    const link = document.createElement('a')
-    link.href = event.registration_qr
-    link.download = `${event.name}-registration-qr.png`
-    link.click()
-  }
+    const link = document.createElement('a');
+    link.href = event.registration_qr;
+    link.download = `${event.name}-registration-qr.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
 
   if (loading) {
     return (
@@ -270,26 +246,10 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {events.map((event) => (
           <div key={event.id} className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl transition-all duration-300 card-hover">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">{event.name}</h3>
-                <p className="text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">{event.company.name}</p>
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => openEditModal(event)}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-300"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => deleteEvent(event.id)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-300"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
+            <div className="mb-2">
+              <h3 className="text-xl font-bold px-3 py-1 rounded-md text-white" style={{ backgroundColor: stringToColor(event.company_id) }}>{event.name}</h3>
             </div>
+            <p className="text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">{event.company.name}</p>
 
             {event.description && (
               <p className="text-gray-600 text-sm mb-4 line-clamp-2 bg-gray-50 p-3 rounded-lg">{event.description}</p>
@@ -325,16 +285,11 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
               <div className="border-t border-gray-200 pt-4 mb-4">
                 <div className="text-center">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">Registration QR Code</h4>
-                  <div className="flex justify-center mb-3">
-                    <img 
-                      src={event.registration_qr} 
-                      alt="Registration QR Code" 
-                      className="w-32 h-32 border-2 border-gray-200 rounded-xl shadow-sm"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-600 mb-2 bg-gray-50 px-3 py-1 rounded-full">
-                    Scan to register for this event
-                  </p>
+                  <img 
+                    src={getStorageUrl(event.registration_qr)} 
+                    alt="Registration QR Code" 
+                    className="w-32 h-32 border-2 border-blue-200 rounded-xl shadow-sm mx-auto"
+                  />
                 </div>
               </div>
             )}
@@ -352,16 +307,39 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                   {event.registration_qr && (
                     <button
                       onClick={() => downloadQRCode(event)}
-                      className="text-green-600 hover:text-green-700 text-sm font-semibold flex items-center bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-all duration-300"
+                      className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-all duration-300"
                     >
                       <QrCode className="h-4 w-4 mr-1" />
-                      Download
+                      Download QR
                     </button>
                   )}
                 </div>
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                  Max: {event.max_attendees}
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    Mode: {event.mode || 'online'}
+                  </span>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                    Max: {event.max_attendees}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-2 mt-3 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => openEditModal(event)}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-all duration-300"
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => deleteEvent(event.id)}
+                  className="text-red-600 hover:text-red-700 text-sm font-semibold flex items-center bg-red-50 px-3 py-2 rounded-lg hover:bg-red-100 transition-all duration-300"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </button>
               </div>
             </div>
           </div>
@@ -482,6 +460,117 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                   placeholder="Enter event location"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Event Data Mode</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900"
+                  value={formData.mode}
+                  onChange={e => setFormData({ ...formData, mode: e.target.value as 'offline' | 'online' | 'hybrid' })}
+                  required
+                >
+                  <option value="online">Online (Supabase)</option>
+                  <option value="offline">Offline (Local Only)</option>
+                  <option value="hybrid">Hybrid (Sync)</option>
+                </select>
+              </div>
+
+              {/* Custom Background & Logo */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom Background (Optional)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                    {formData.custom_background ? (
+                      <div className="space-y-2">
+                        <img
+                          src={formData.custom_background}
+                          alt="Background Preview"
+                          className="max-w-full h-32 object-cover mx-auto rounded-lg"
+                        />
+                        <button
+                          onClick={() => setFormData({ ...formData, custom_background: '' })}
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          Remove Background
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Image className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-600 text-sm mb-2">Upload custom background</p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const url = URL.createObjectURL(file)
+                              setFormData({ ...formData, custom_background: url })
+                            }
+                          }}
+                          className="hidden"
+                          id="background-upload"
+                        />
+                        <label
+                          htmlFor="background-upload"
+                          className="inline-block bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors cursor-pointer"
+                        >
+                          Select Image
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom Logo (Optional)
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                    {formData.custom_logo ? (
+                      <div className="space-y-2">
+                        <img
+                          src={formData.custom_logo}
+                          alt="Logo Preview"
+                          className="max-w-full h-32 object-contain mx-auto rounded-lg"
+                        />
+                        <button
+                          onClick={() => setFormData({ ...formData, custom_logo: '' })}
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          Remove Logo
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Image className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-600 text-sm mb-2">Upload custom logo</p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const url = URL.createObjectURL(file)
+                              setFormData({ ...formData, custom_logo: url })
+                            }
+                          }}
+                          className="hidden"
+                          id="logo-upload"
+                        />
+                        <label
+                          htmlFor="logo-upload"
+                          className="inline-block bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors cursor-pointer"
+                        >
+                          Select Image
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">

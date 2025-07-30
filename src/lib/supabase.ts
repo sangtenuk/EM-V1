@@ -11,6 +11,62 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
+// Utility function to get Supabase storage URL
+export const getStorageUrl = (path: string, bucket: string = 'images'): string => {
+  if (!path) return ''
+  
+  // If it's already a full URL, return as is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path
+  }
+  
+  // If it's a blob URL, return as is
+  if (path.startsWith('blob:')) {
+    return path
+  }
+  
+  // If it's a data URL, return as is
+  if (path.startsWith('data:')) {
+    return path
+  }
+  
+  // Otherwise, construct Supabase storage URL
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`
+}
+
+// Utility function to upload image to Supabase storage
+export const uploadImage = async (file: File, path: string, bucket: string = 'images'): Promise<string> => {
+  try {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(path, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (error) throw error
+    
+    return getStorageUrl(data.path, bucket)
+  } catch (error) {
+    console.error('Error uploading image:', error)
+    throw error
+  }
+}
+
+// Utility function to delete image from Supabase storage
+export const deleteImage = async (path: string, bucket: string = 'images'): Promise<void> => {
+  try {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .remove([path])
+    
+    if (error) throw error
+  } catch (error) {
+    console.error('Error deleting image:', error)
+    throw error
+  }
+}
+
 export type Database = {
   public: {
     Tables: {

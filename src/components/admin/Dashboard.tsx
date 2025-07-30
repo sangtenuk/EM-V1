@@ -26,6 +26,8 @@ import {
   Rocket
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useGlobalModeStore, HybridMode } from '../../lib/globalModeStore';
+import { useSyncStatusStore, SyncStatus } from '../../lib/hybridDB';
 
 interface DashboardProps {
   userCompany?: any
@@ -101,6 +103,8 @@ export default function Dashboard({ userCompany }: DashboardProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<AdminStats['searchResults'] | null>(null)
   const [searching, setSearching] = useState(false)
+  const { mode, setMode } = useGlobalModeStore();
+  const { status: syncStatus, lastSync } = useSyncStatusStore();
 
   useEffect(() => {
     if (userCompany) {
@@ -430,6 +434,35 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             Admin Dashboard
           </h1>
           <p className="text-gray-600 text-lg">System-wide analytics and management overview</p>
+        </div>
+
+        {/* Hybrid Mode Toggle */}
+        <div style={{ marginBottom: 16 }}>
+          <label htmlFor="hybrid-mode-select" style={{ fontWeight: 'bold', marginRight: 8 }}>Data Mode:</label>
+          <select
+            id="hybrid-mode-select"
+            value={mode}
+            onChange={e => setMode(e.target.value as HybridMode)}
+            style={{ padding: 4, borderRadius: 4 }}
+          >
+            <option value="online">Online (Supabase)</option>
+            <option value="offline">Offline (Local Only)</option>
+            <option value="hybrid">Hybrid (Sync)</option>
+          </select>
+        </div>
+        {/* Sync/DB Status UI */}
+        <div className="flex items-center space-x-4 mb-4">
+          <div className={`flex items-center px-3 py-1 rounded-full text-white font-semibold text-xs ${syncStatus === 'idle' ? 'bg-gray-400' : syncStatus === 'syncing' ? 'bg-blue-500' : syncStatus === 'success' ? 'bg-green-500' : 'bg-red-500'}`}
+               title={`Sync status: ${syncStatus}`}>
+            Sync: {syncStatus.charAt(0).toUpperCase() + syncStatus.slice(1)}
+          </div>
+          <div className={`flex items-center px-3 py-1 rounded-full text-white font-semibold text-xs ${mode === 'online' ? 'bg-blue-500' : mode === 'offline' ? 'bg-yellow-500' : 'bg-green-500'}`}
+               title={`Database mode: ${mode}`}>
+            DB: {mode.charAt(0).toUpperCase() + mode.slice(1)}
+          </div>
+          {lastSync && (
+            <div className="text-xs text-gray-500">Last Sync: {new Date(lastSync).toLocaleString()}</div>
+          )}
         </div>
 
         {/* Search Bar */}

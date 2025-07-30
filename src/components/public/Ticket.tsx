@@ -1,7 +1,7 @@
 /* import React, { useState, useEffect } from 'react' */
  import { useState, useEffect } from 'react' 
 import { useParams } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
 import { Calendar, MapPin, CheckCircle, QrCode } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -143,7 +143,7 @@ export default function Ticket() {
             {attendee.qr_code && (
               <div className="flex justify-center">
                 <img 
-                  src={attendee.qr_code} 
+                  src={getStorageUrl(attendee.qr_code)} 
                   alt="QR Code for check-in" 
                   className="w-40 h-40 md:w-48 md:h-48 border border-gray-200 rounded-lg"
                 />

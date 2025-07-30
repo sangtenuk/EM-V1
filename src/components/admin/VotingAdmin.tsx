@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Vote, Image, Edit, Trash2, Play, Pause, Upload } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import { supabase, getStorageUrl } from '../../lib/supabase'
+
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
 
@@ -474,7 +475,7 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                 {photos.map((photo) => (
                   <div key={photo.id} className="border rounded-lg overflow-hidden">
                     <img
-                      src={photo.photo_url}
+                      src={getStorageUrl(photo.photo_url)}
                       alt={photo.title}
                       className="w-full h-48 object-cover"
                     />
