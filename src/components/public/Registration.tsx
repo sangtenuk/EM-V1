@@ -136,25 +136,25 @@ export default function Registration() {
       } as any)
 
       // Upload face photo if provided
-      let facePhotoUrl = null
-      if (facePhoto) {
-        const photoBlob = await fetch(facePhoto).then(r => r.blob())
-        const fileName = `face_photos/${attendeeId}.jpg`
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('attendee-photos')
-          .upload(fileName, photoBlob, {
-            contentType: 'image/jpeg'
-          })
-        
-        if (uploadError) {
-          console.error('Error uploading photo:', uploadError)
-        } else {
-          const { data: { publicUrl } } = supabase.storage
-            .from('attendee-photos')
-            .getPublicUrl(fileName)
-          facePhotoUrl = publicUrl
-        }
-      }
+   //   let facePhotoUrl = null
+    //  if (facePhoto) {
+     //   const photoBlob = await fetch(facePhoto).then(r => r.blob())
+      //  const fileName = `face_photos/${attendeeId}.jpg`
+       // const { data: uploadData, error: uploadError } = await supabase.storage
+//          .from('attendee-photos')
+ //         .upload(fileName, photoBlob, {
+  //          contentType: 'image/jpeg'
+  //        })
+  //      
+  //      if (uploadError) {
+  //        console.error('Error uploading photo:', uploadError)
+  //      } else {
+  //        const { data: { publicUrl } } = supabase.storage
+  //          .from('attendee-photos')
+  //         .getPublicUrl(fileName)
+  //        facePhotoUrl = publicUrl
+  //      }
+  //    }
 
       const { error } = await supabase
         .from('attendees')
