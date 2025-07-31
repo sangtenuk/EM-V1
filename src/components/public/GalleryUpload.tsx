@@ -8,6 +8,7 @@ interface Event {
   id: string
   name: string
   description: string | null
+  max_gallery_uploads?: number
   company: {
     name: string
   }
@@ -22,7 +23,7 @@ export default function GalleryUpload() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploadCount, setUploadCount] = useState(0)
-  const [maxUploads] = useState(3)
+  const [maxUploads, setMaxUploads] = useState(2)
 
   useEffect(() => {
     if (eventId) {
@@ -38,6 +39,7 @@ export default function GalleryUpload() {
           id,
           name,
           description,
+          max_gallery_uploads,
           company:companies(name)
         `)
         .eq('id', eventId)
@@ -53,6 +55,7 @@ export default function GalleryUpload() {
       }
 
       setEvent(normalizedEvent)
+      setMaxUploads(normalizedEvent.max_gallery_uploads || 2)
       
       // Check upload count for this attendee
       await checkUploadCount()
@@ -78,6 +81,13 @@ export default function GalleryUpload() {
       console.error('Error checking upload count:', error)
     }
   }
+
+  // Check upload count when attendee name changes
+  useEffect(() => {
+    if (eventId && attendeeName) {
+      checkUploadCount()
+    }
+  }, [attendeeName, eventId])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -180,25 +190,12 @@ export default function GalleryUpload() {
     <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-     
-          
-<div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
-  <Camera className="h-12 w-12 mx-auto mb-4" />
-  <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
-
-  {event ? (
-    <>
-      <p className="text-blue-100">{event.name}</p>
-      <p className="text-blue-200 text-sm">{event.company?.name ?? ''}</p>
-    </>
-  ) : (
-    <>
-      <div className="h-4 w-48 bg-blue-500/40 rounded mx-auto animate-pulse mb-1" />
-      <div className="h-3 w-36 bg-blue-400/40 rounded mx-auto animate-pulse" />
-    </>
-  )}
-</div>
-
+          <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
+            <Camera className="h-12 w-12 mx-auto mb-4" />
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
+            <p className="text-blue-100">{event.name}</p>
+            <p className="text-blue-200 text-sm">{event?.company?.name ?? 'No Company'}</p>
+          </div>
 
           <div className="px-4 md:px-6 py-6 md:py-8">
             <div className="space-y-6">
@@ -263,11 +260,11 @@ export default function GalleryUpload() {
               {selectedFile && (
                 <button
                   onClick={uploadPhoto}
-                  disabled={uploading}
+                  disabled={uploading || uploadCount >= maxUploads}
                   className="w-full bg-green-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 text-sm md:text-base"
                 >
                   <Upload className="h-5 w-5 mr-2" />
-                  {uploading ? 'Uploading...' : 'Upload Photo'}
+                  {uploading ? 'Uploading...' : uploadCount >= maxUploads ? 'Upload Limit Reached' : 'Upload Photo'}
                 </button>
               )}
             </div>
@@ -276,9 +273,16 @@ export default function GalleryUpload() {
               <p>• Your photo will be added to the event gallery</p>
               <p>• Photos may be displayed during the event</p>
               <p>• By uploading, you consent to public display</p>
-              <p className="mt-2 text-blue-600 font-medium">
-                Uploads: {uploadCount}/{maxUploads} photos
-              </p>
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-blue-800 font-medium">
+                  Upload Limit: {uploadCount}/{maxUploads} photos
+                </p>
+                {uploadCount >= maxUploads && (
+                  <p className="text-red-600 text-xs mt-1">
+                    You have reached the maximum upload limit
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
