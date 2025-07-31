@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react' 
 import { QrCode, UserCheck, Users, CheckCircle, Camera, MapPin, X } from 'lucide-react'
-import { Html5QrcodeScanner } from 'html5-qrcode'
 import { supabase, getStorageUrl } from '../../lib/supabase'
+import Scanner from './Scanner'
 
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
@@ -78,11 +78,9 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
-  const [scannerActive, setScannerActive] = useState(false)
   const [manualId, setManualId] = useState('')
   const [recentCheckIns, setRecentCheckIns] = useState<RecentCheckInAttendee[]>([])
   const [stats, setStats] = useState({ total: 0, checkedIn: 0 })
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null)
   const [eventQR, setEventQR] = useState('')
   const [checkedInName, setCheckedInName] = useState<string | null>(null)
   const [checkedInTable, setCheckedInTable] = useState<string | null>(null)
@@ -114,6 +112,8 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
     fetchEvents()
   }, [])
 
+
+
   useEffect(() => {
     if (selectedEventId) {
       fetchEventStats()
@@ -129,9 +129,6 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
 
   useEffect(() => {
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear()
-      }
       // Cleanup face detection camera
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream
@@ -141,10 +138,7 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
     }
   }, [])
 
-  useEffect(() => {
-    setCheckedInName(null)
-    setCheckedInTable(null)
-  }, [selectedEventId])
+
 
   // Cleanup face detection when component unmounts or modal closes
   useEffect(() => {
@@ -353,78 +347,25 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
     })
   }
 
-  const startScanner = () => {
-    if (!selectedEventId) {
-      toast.error('Please select an event first')
-      return
-    }
-
-    // Request camera permissions first
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(() => {
-        initializeScanner()
-      })
-      .catch((error) => {
-        console.error('Camera permission denied:', error)
-        toast.error('Camera access is required to scan QR codes. Please allow camera access and try again.')
-      })
-  }
-
-  const initializeScanner = () => {
-    setScannerActive(true)
-    
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { 
-        fps: 10, 
-        qrbox: { width: 300, height: 300 },
-        aspectRatio: 1.0,
-        showTorchButtonIfSupported: true,
-        showZoomSliderIfSupported: true
-      },
-      false
-    )
-
-    scanner.render(
-      (decodedText) => {
-        handleQRScan(decodedText)
-        scanner.clear()
-        setScannerActive(false)
-      },
-      (error) => {
-        // Only log actual errors, not scanning attempts
-        if (error && !error.includes('No QR code found')) {
-          console.log('QR scan error:', error)
-        }
-      }
-    )
-
-    scannerRef.current = scanner
-  }
-
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.clear()
-      scannerRef.current = null
-    }
-    setScannerActive(false)
-  }
-
-  const handleQRScan = async (qrData: string) => {
+  const handleQRScan = async (result: string) => {
     try {
-      const result = await processCheckIn(qrData)
+      const checkInResult = await processCheckIn(result)
       
-      if (result.success) {
-        toast.success(result.message)
+      if (checkInResult.success) {
+        toast.success(checkInResult.message)
         fetchEventStats()
         fetchRecentCheckIns()
+        setCheckedInName(checkInResult.attendee?.name || null)
+        setCheckedInTable(checkInResult.attendee?.table_assignment || null)
       } else {
-        toast.error(result.message)
+        toast.error(checkInResult.message)
       }
     } catch (error: any) {
-      toast.error('Error processing check-in: ' + error.message)
+      toast.error('Error processing QR scan: ' + error.message)
     }
   }
+
+
 
   const processCheckIn = async (qrData: string): Promise<CheckInResult> => {
     try {
@@ -705,7 +646,13 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
         {selectedEventId && (() => {
           const event = events.find(e => e.id === selectedEventId)
           const sectionStyle = event?.custom_background
-            ? { backgroundImage: `url(${event.custom_background})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            ? { 
+                backgroundImage: event.custom_background.startsWith('blob:') 
+                  ? `url(${event.custom_background})` 
+                  : `url(${getStorageUrl(event.custom_background)})`, 
+                backgroundSize: 'cover', 
+                backgroundPosition: 'center' 
+              }
             : {}
           return (
             <div style={sectionStyle} className="min-h-[200px] rounded-lg mb-6 p-6 relative">
@@ -767,49 +714,12 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
           </h2>
           
           <div className="space-y-4">
-            {!scannerActive ? (
-              <div>
-                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    📱 Make sure to allow camera access when prompted
-                  </p>
-                </div>
-                <button
-                  onClick={startScanner}
-                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-                >
-                  <Camera className="h-5 w-5 mr-2" />
-                  Start Camera Scanner
-                </button>
-                <p className="text-sm text-gray-600 mt-2 text-center">
-                  Click to activate camera and scan QR codes
-                </p>
-              </div>
-            ) : (
-              <div>
-                <div className="relative">
-                  <div id="qr-reader" className="w-full"></div>
-                  {/* Scanner Frame Overlay */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="flex items-center justify-center h-full">
-                      <div className="w-64 h-64 border-4 border-white rounded-lg shadow-lg">
-                        {/* Corner indicators */}
-                        <div className="absolute -top-2 -left-2 w-6 h-6 border-t-4 border-l-4 border-blue-500"></div>
-                        <div className="absolute -top-2 -right-2 w-6 h-6 border-t-4 border-r-4 border-blue-500"></div>
-                        <div className="absolute -bottom-2 -left-2 w-6 h-6 border-b-4 border-l-4 border-blue-500"></div>
-                        <div className="absolute -bottom-2 -right-2 w-6 h-6 border-b-4 border-r-4 border-blue-500"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={stopScanner}
-                  className="w-full mt-4 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Stop Scanner
-                </button>
-              </div>
-            )}
+            <Scanner 
+              onScan={handleQRScan}
+              onError={(error) => toast.error(error)}
+              autoStart={true}
+              eventSelected={!!selectedEventId}
+            />
 
             {/* Manual Entry */}
             <div className="border-t pt-4">

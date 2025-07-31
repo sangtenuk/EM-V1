@@ -36,12 +36,57 @@ function stringToColor(str: string) {
   return color;
 }
 
+// File upload utility functions
+const uploadFileToSupabase = async (file: File, folder: string, eventId: string): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${eventId}_${Date.now()}.${fileExt}`;
+    const filePath = `${folder}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('event-assets')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return null;
+    }
+
+    return filePath;
+  } catch (error) {
+    console.error('Error uploading to Supabase:', error);
+    return null;
+  }
+};
+
+const storeFileLocally = (file: File, eventId: string, type: 'background' | 'logo'): string => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${eventId}_${type}_${Date.now()}.${fileExt}`;
+    const url = URL.createObjectURL(file);
+    
+    // Store in localStorage for backup
+    const key = `event_${eventId}_${type}`;
+    localStorage.setItem(key, JSON.stringify({
+      url,
+      fileName,
+      timestamp: Date.now()
+    }));
+    
+    return url;
+  } catch (error) {
+    console.error('Error storing file locally:', error);
+    return URL.createObjectURL(file);
+  }
+};
+
 export default function EventManagement({ userCompany }: EventManagementProps) {
   const [events, setEvents] = useState<UIEvent[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editingEvent, setEditingEvent] = useState<UIEvent | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
   const [formData, setFormData] = useState({
     company_id: '',
     name: '',
@@ -106,10 +151,45 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     }
   }
 
+  const handleFileUpload = async (file: File, type: 'background' | 'logo', eventId?: string): Promise<string> => {
+    setUploading(true);
+    try {
+      let supabasePath: string | null = null;
+      let localUrl: string = '';
+
+      // Try to upload to Supabase first (priority)
+      if (eventId) {
+        supabasePath = await uploadFileToSupabase(file, type === 'background' ? 'backgrounds' : 'logos', eventId);
+      }
+
+      // Always store locally as backup
+      localUrl = storeFileLocally(file, eventId || 'temp', type);
+
+      // Return Supabase path if available, otherwise local URL
+      if (supabasePath) {
+        toast.success(`${type === 'background' ? 'Background' : 'Logo'} uploaded to cloud storage`);
+        return supabasePath;
+      } else {
+        toast.error(`${type === 'background' ? 'Background' : 'Logo'} stored locally (cloud upload failed)`);
+        return localUrl;
+      }
+    } catch (error: any) {
+      console.error(`Error uploading ${type}:`, error);
+      toast.error(`Error uploading ${type}: ${error.message}`);
+      return URL.createObjectURL(file);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.company_id) return;
+    
+    setUploading(true);
     try {
+      let eventId: string;
+      
       if (editingEvent) {
         // Update event
         const { error } = await supabase
@@ -117,6 +197,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
           .update(formData)
           .eq('id', editingEvent.id);
         if (error) throw error;
+        eventId = editingEvent.id;
         toast.success('Event updated successfully!');
       } else {
         // Create event
@@ -125,9 +206,10 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
           .insert([formData])
           .select();
         if (error) throw error;
+        eventId = data[0].id;
         
         // Generate QR code for the new event
-        const registrationUrl = `${window.location.origin}/public/register/${data[0].id}`;
+        const registrationUrl = `${window.location.origin}/public/register/${eventId}`;
         const qrCodeDataUrl = await QRCodeLib.toDataURL(registrationUrl, {
           width: 300,
           margin: 2,
@@ -138,14 +220,51 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
         await supabase
           .from('events')
           .update({ registration_qr: qrCodeDataUrl })
-          .eq('id', data[0].id);
+          .eq('id', eventId);
         
         toast.success('Event created successfully!');
       }
+
+      // Handle file uploads if they exist
+      const updatedFormData = { ...formData };
+      
+      // Handle background upload
+      if (formData.custom_background && formData.custom_background.startsWith('blob:')) {
+        const fileInput = document.getElementById('background-upload') as HTMLInputElement;
+        const file = fileInput?.files?.[0];
+        if (file) {
+          const uploadedPath = await handleFileUpload(file, 'background', eventId);
+          updatedFormData.custom_background = uploadedPath;
+        }
+      }
+
+      // Handle logo upload
+      if (formData.custom_logo && formData.custom_logo.startsWith('blob:')) {
+        const fileInput = document.getElementById('logo-upload') as HTMLInputElement;
+        const file = fileInput?.files?.[0];
+        if (file) {
+          const uploadedPath = await handleFileUpload(file, 'logo', eventId);
+          updatedFormData.custom_logo = uploadedPath;
+        }
+      }
+
+      // Update event with final file paths
+      if (editingEvent || (updatedFormData.custom_background !== formData.custom_background || updatedFormData.custom_logo !== formData.custom_logo)) {
+        await supabase
+          .from('events')
+          .update({
+            custom_background: updatedFormData.custom_background,
+            custom_logo: updatedFormData.custom_logo
+          })
+          .eq('id', eventId);
+      }
+
       resetForm();
       fetchEvents();
     } catch (error: any) {
       toast.error('Error saving event: ' + error.message);
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -211,6 +330,22 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     document.body.removeChild(link);
   };
 
+  const getImageUrl = (path: string | null): string => {
+    if (!path) return '';
+    
+    // If it's a Supabase path, use getStorageUrl
+    if (path.includes('/') && !path.startsWith('blob:')) {
+      return getStorageUrl(path);
+    }
+    
+    // If it's a local blob URL, return as is
+    if (path.startsWith('blob:')) {
+      return path;
+    }
+    
+    // If it's a local storage URL, return as is
+    return path;
+  };
 
   if (loading) {
     return (
@@ -486,11 +621,16 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                     {formData.custom_background ? (
                       <div className="space-y-2">
                         <img
-                          src={formData.custom_background}
+                          src={getImageUrl(formData.custom_background)}
                           alt="Background Preview"
                           className="max-w-full h-32 object-cover mx-auto rounded-lg"
+                          onError={(e) => {
+                            console.error('Error loading background:', e);
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                         <button
+                          type="button"
                           onClick={() => setFormData({ ...formData, custom_background: '' })}
                           className="text-blue-600 hover:text-blue-700 text-sm"
                         >
@@ -533,11 +673,16 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                     {formData.custom_logo ? (
                       <div className="space-y-2">
                         <img
-                          src={formData.custom_logo}
+                          src={getImageUrl(formData.custom_logo)}
                           alt="Logo Preview"
                           className="max-w-full h-32 object-contain mx-auto rounded-lg"
+                          onError={(e) => {
+                            console.error('Error loading logo:', e);
+                            e.currentTarget.style.display = 'none';
+                          }}
                         />
                         <button
+                          type="button"
                           onClick={() => setFormData({ ...formData, custom_logo: '' })}
                           className="text-blue-600 hover:text-blue-700 text-sm"
                         >
@@ -583,8 +728,12 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                 </button>
                 <button
                   type="submit"
-                  className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-300 font-semibold shadow-lg"
+                  disabled={uploading}
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-300 font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                 >
+                  {uploading && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  )}
                   {editingEvent ? 'Update Event' : 'Create Event'}
                 </button>
               </div>

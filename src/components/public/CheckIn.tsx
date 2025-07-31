@@ -55,7 +55,15 @@ export default function CheckIn() {
         .single()
 
       if (error) throw error
-      setEvent(data)
+      // Handle different data structures
+      let eventData: any = data
+      if (Array.isArray(eventData.company)) {
+        eventData = {
+          ...eventData,
+          company: eventData.company[0]
+        }
+      }
+      setEvent(eventData)
     } catch (error: any) {
       toast.error('Error fetching event: ' + error.message)
     } finally {
@@ -165,7 +173,13 @@ export default function CheckIn() {
   }
 
   const sectionStyle = event?.custom_background
-    ? { backgroundImage: `url(${event.custom_background})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    ? { 
+        backgroundImage: event.custom_background.startsWith('blob:') 
+          ? `url(${event.custom_background})` 
+          : `url(${getStorageUrl(event.custom_background)})`, 
+        backgroundSize: 'cover', 
+        backgroundPosition: 'center' 
+      }
     : {}
 
   return (

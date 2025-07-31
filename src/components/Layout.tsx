@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { LogOut, Building2, Calendar, Users, QrCode, Monitor, Gift, Image, MapPin, BarChart3, Vote, Sparkles, Palette } from 'lucide-react'
+import { LogOut, Building2, Calendar, Users, QrCode, Monitor, Gift, Image, MapPin, BarChart3, Vote, Sparkles, Menu, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useGlobalModeStore, HybridMode } from '../lib/globalModeStore';
 import GlobalSearch from './admin/GlobalSearch'
@@ -33,30 +33,55 @@ export default function Layout({ children, userCompany }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { mode, setMode } = useGlobalModeStore();
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     navigate('/')
   }
 
+  const closeSidebar = () => {
+    setSidebarOpen(false)
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
+          onClick={closeSidebar}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-50 lg:w-72 lg:block">
+      <div className={`fixed inset-y-0 left-0 z-50 w-72 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
         <div className="flex h-full flex-col bg-white border-r border-gray-200 shadow-lg">
           {/* Header */}
-          <div className="flex h-20 items-center justify-center border-b border-gray-200 bg-blue-600">
-            <div className="text-center w-full">
-              <div className="flex items-center justify-center mb-1">
-                <Sparkles className="h-8 w-8 text-white mr-2" />
-                <a href="/"> <h1 className="text-2xl font-bold text-white">EventPro</h1></a>
+          <div className="flex h-20 items-center justify-between border-b border-gray-200 bg-blue-600 px-4">
+            <div className="flex items-center">
+              <Sparkles className="h-8 w-8 text-white mr-2" />
+              <div>
+                <a href="/">
+                  <h1 className="text-xl font-bold text-white">EventPro</h1>
+                </a>
+                {userCompany && (
+                  <p className="text-xs text-blue-100 truncate font-medium">{userCompany.company.name}</p>
+                )}
+                <h6 className="text-xs text-blue-100 truncate font-small">powered by <i>sangtenuk</i></h6>
               </div>
-              {userCompany && (
-                <p className="text-sm text-blue-100 truncate px-2 font-medium">{userCompany.company.name}</p>
-              )}
-              <h6 className="text-sm text-blue-100 truncate px-10 font-small">powered by <i>sangtenuk</i></h6>
             </div>
+            {/* Close button for mobile */}
+            <button
+              onClick={closeSidebar}
+              className="lg:hidden p-2 text-white hover:bg-blue-700 rounded-lg transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
+
           {/* Data Mode Toggle (admin only) */}
           {!userCompany && (
             <div className="px-6 py-4 border-b border-gray-200 bg-white">
@@ -94,6 +119,7 @@ export default function Layout({ children, userCompany }: LayoutProps) {
                 <Link
                   key={item.name}
                   to={item.href}
+                  onClick={closeSidebar}
                   className={`group flex items-center px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
                     isActive
                       ? 'bg-blue-600 text-white'
@@ -129,16 +155,22 @@ export default function Layout({ children, userCompany }: LayoutProps) {
       </div>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white shadow-lg border-b border-gray-200">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 bg-white shadow-lg border-b border-gray-200">
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 mr-3 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <Sparkles className="h-6 w-6 text-blue-600 mr-2" />
             <div>
               <a href="/">
-              <h1 className="text-lg font-bold text-blue-600">
-                EventPro
-              </h1>
-                </a>
+                <h1 className="text-lg font-bold text-blue-600">
+                  EventPro
+                </h1>
+              </a>
               {userCompany && (
                 <p className="text-xs text-blue-600 font-medium truncate">{userCompany.company.name}</p>
               )}
@@ -152,40 +184,11 @@ export default function Layout({ children, userCompany }: LayoutProps) {
             Sign Out
           </button>
         </div>
-        
-        {/* Mobile Navigation */}
-        <div className="px-4 pb-4 border-t border-gray-200 bg-gray-50">
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            {navigation.filter(item => {
-              if (userCompany && item.href === '/admin/companies') return false
-              return true
-            }).slice(0, 9).map((item) => {
-              const Icon = item.icon
-              const isActive = location.pathname === item.href || 
-                (item.href !== '/admin' && location.pathname.startsWith(item.href))
-              
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex flex-col items-center px-2 py-3 text-xs font-semibold rounded-xl transition-all duration-300 ${
-                    isActive
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="h-5 w-5 mb-1" />
-                  <span className="truncate text-center leading-tight">{item.name}</span>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-72">
-        <main className="flex-1 p-4 md:p-8 pt-32 lg:pt-8">
+      <div className="flex-1 lg:ml-30">
+        <main className="flex-1 p-4 md:p-8 pt-20 lg:pt-8">
           {children}
         </main>
       </div>

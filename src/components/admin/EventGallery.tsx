@@ -4,6 +4,8 @@ import { supabase, getStorageUrl } from '../../lib/supabase'
 
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
+import { motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 
 interface Event {
   id: string
@@ -153,59 +155,138 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
     <div className="h-full bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 relative overflow-hidden">
       {photos.length > 0 ? (
         <>
-          {/* 3D Wall of Images */}
-          <div className="absolute inset-0 perspective-1000">
+          {/* Multiple Photo Flying Animation */}
+          <div className="absolute inset-0">
             {photos.map((photo, index) => {
+              // Calculate position based on index for flying effect
+              const angle = (index / photos.length) * 360;
+              const radius = 200 + (index % 3) * 50; // Varying distances
+              const centerX = window.innerWidth / 2;
+              const centerY = window.innerHeight / 2;
+              
+              // Calculate flying position
+              const x = centerX + Math.cos(angle * Math.PI / 180) * radius;
+              const y = centerY + Math.sin(angle * Math.PI / 180) * radius;
+              
+              // Determine if this photo is active (current slide)
               const isActive = index === currentSlideIndex;
-              const row = Math.floor(index / 4); // 4 images per row
-              const col = index % 4;
-              const centerX = (col - 1.5) * 200; // Center the grid
-              const centerY = (row - Math.floor(photos.length / 8)) * 200; // Center vertically
-              const depth = isActive ? 400 : 100 + (index * 50); // Active image comes forward
-              const scale = isActive ? 1.2 : 0.8;
+              const isNearby = Math.abs(index - currentSlideIndex) <= 2;
               
               return (
-                <div
+                <motion.div
                   key={photo.id}
-                  className={`absolute transition-all duration-1000 ease-out ${
-                    isActive ? 'z-50 opacity-100' : 'z-10 opacity-60'
-                  }`}
-                  style={{
-                    left: `calc(50% + ${centerX}px)`,
-                    top: `calc(50% + ${centerY}px)`,
-                    transform: `translateZ(${depth}px) scale(${scale})`,
-                    animation: isActive 
-                      ? 'activeImage 6s ease-in-out infinite' 
-                      : 'wallFloat 4s ease-in-out infinite'
+                  className="absolute"
+                  initial={{ 
+                    x: centerX - 100, 
+                    y: centerY - 100, 
+                    scale: 0.3, 
+                    opacity: 0,
+                    rotate: 0
                   }}
+                  animate={{
+                    x: isActive ? centerX - 150 : x,
+                    y: isActive ? centerY - 150 : y,
+                    scale: isActive ? 1.2 : (isNearby ? 0.8 : 0.4),
+                    opacity: isActive ? 1 : (isNearby ? 0.7 : 0.3),
+                    rotate: isActive ? 0 : angle * 0.1
+                  }}
+                  transition={{
+                    duration: 0.8,
+                    ease: "easeOut",
+                    delay: index * 0.1
+                  }}
+                  whileHover={{
+                    scale: isActive ? 1.3 : 0.9,
+                    zIndex: 10
+                  }}
+                  onClick={() => setCurrentSlideIndex(index)}
                 >
-                  <div className="relative group">
+                  <div className="relative cursor-pointer">
                     <img
                       src={getStorageUrl(photo.photo_url)}
                       alt="Gallery"
-                      className="w-40 h-40 object-cover rounded-xl shadow-2xl border-4 border-white/20 hover:border-white/40 transition-all duration-500 hover:scale-110"
+                      className="w-32 h-32 object-cover rounded-xl shadow-2xl border-2 border-white/30 hover:border-white/60 transition-all duration-300"
                       style={{
-                        filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.3))',
-                        animation: isActive 
-                          ? 'imagePulse 3s ease-in-out infinite' 
-                          : 'gentleFloat 4s ease-in-out infinite'
+                        filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.4))',
                       }}
                     />
+                    
+                    {/* Photo Info - Only show for active photo */}
                     {isActive && (
-                      <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-lg p-3 text-white text-center min-w-[200px]">
-                        <div className="text-sm font-semibold">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3, duration: 0.4 }}
+                        className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-lg p-2 text-white text-center min-w-[140px]"
+                      >
+                        <div className="text-sm font-semibold truncate">
                           {photo.attendee_name || 'Anonymous'}
                         </div>
                         <div className="text-xs opacity-80">
-                          {new Date(photo.created_at).toLocaleString()}
+                          {new Date(photo.created_at).toLocaleDateString()}
                         </div>
-                      </div>
+                      </motion.div>
+                    )}
+                    
+                    {/* Zoom indicator for active photo */}
+                    {isActive && (
+                      <motion.div
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 0.5, type: "spring", stiffness: 300 }}
+                      >
+                        <svg className="w-4 h-4 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                        </svg>
+                      </motion.div>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
+          
+          {/* Central Active Photo Display */}
+          {photos[currentSlideIndex] && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+            >
+              <div className="relative max-w-2xl max-h-96">
+                <motion.img
+                  key={currentSlideIndex}
+                  src={getStorageUrl(photos[currentSlideIndex]?.photo_url)}
+                  alt="Active Gallery"
+                  className="w-full h-auto object-contain rounded-2xl shadow-2xl border-4 border-white/40"
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  style={{
+                    filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.5))',
+                  }}
+                />
+                
+                {/* Active Photo Info */}
+                <motion.div
+                  className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white"
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3, duration: 0.4 }}
+                >
+                  <div className="text-lg font-semibold">
+                    {photos[currentSlideIndex]?.attendee_name || 'Anonymous'}
+                  </div>
+                  <div className="text-sm opacity-80">
+                    {new Date(photos[currentSlideIndex]?.created_at).toLocaleString()}
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
           
           {/* Navigation Controls */}
           <div className="absolute bottom-8 left-8 text-white bg-black/50 backdrop-blur-sm rounded-lg p-4">
@@ -221,19 +302,25 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             {currentSlideIndex + 1} / {photos.length}
           </div>
           
-          {/* 3D Navigation Dots */}
+          {/* Navigation Dots */}
           <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 flex space-x-2">
             {photos.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlideIndex(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                className={`w-3 h-3 rounded-full transition-all duration-200 ${
                   index === currentSlideIndex 
                     ? 'bg-white scale-125' 
                     : 'bg-white/50 hover:bg-white/75'
                 }`}
               />
             ))}
+          </div>
+          
+          {/* Flying Animation Controls */}
+          <div className="absolute top-8 left-8 text-white bg-black/50 backdrop-blur-sm rounded-lg p-3">
+            <div className="text-sm font-semibold">Flying Gallery</div>
+            <div className="text-xs opacity-80">Click photos to focus</div>
           </div>
         </>
       ) : (
@@ -245,34 +332,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
           </div>
         </div>
       )}
-      
-      {/* CSS Animations */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          @keyframes activeImage {
-            0% { transform: translateZ(400px) scale(1.2); }
-            50% { transform: translateZ(600px) scale(1.4); }
-            100% { transform: translateZ(400px) scale(1.2); }
-          }
-          
-          @keyframes wallFloat {
-            0%, 100% { transform: translateZ(100px) scale(0.8); }
-            50% { transform: translateZ(200px) scale(0.9); }
-          }
-          
-          @keyframes imagePulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-          }
-          
-          @keyframes gentleFloat {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-5px); }
-          }
-          
-          .perspective-1000 { perspective: 1000px; }
-        `
-      }} />
     </div>
   )
 

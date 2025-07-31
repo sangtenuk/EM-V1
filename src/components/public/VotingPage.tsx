@@ -68,6 +68,7 @@ export default function VotingPage() {
           },
           () => {
             fetchPhotosWithVotes()
+            checkIfUserVoted()
           }
         )
         .subscribe()
@@ -79,50 +80,59 @@ export default function VotingPage() {
   }, [sessionId, attendee])
 
   const fetchSession = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('voting_sessions')
-      .select(`
-        id,
-        title,
-        description,
-        event:events(
+    try {
+      const { data, error } = await supabase
+        .from('voting_sessions')
+        .select(`
           id,
-          name,
-          company:companies(name)
-        )
-      `)
-      .eq('id', sessionId)
-      .eq('is_active', true)
-      .single()
+          title,
+          description,
+          event:events(
+            id,
+            name,
+            company:companies(name)
+          )
+        `)
+        .eq('id', sessionId)
+        .eq('is_active', true)
+        .single()
 
-    if (error || !data) throw error
+      if (error || !data) throw error
 
-    const cleanedSession: VotingSession = {
-      id: data.id,
-      title: data.title,
-      description: data.description,
-      event: {
-        id: data.event[0]?.id,
-        name: data.event[0]?.name,
-        company: Array.isArray(data.event[0]?.company)
-          ? data.event[0].company[0]
-          : data.event[0]?.company
+      // Handle different data structures
+      let eventData: any = data.event
+      if (Array.isArray(eventData)) {
+        eventData = eventData[0]
       }
-    }
 
-    setSession(cleanedSession)
-  } catch (error: any) {
-    toast.error('Voting session not found or not active')
-  } finally {
-    setLoading(false)
+      if (!eventData) {
+        throw new Error('Event data not found')
+      }
+
+      const cleanedSession: VotingSession = {
+        id: data.id,
+        title: data.title,
+        description: data.description,
+        event: {
+          id: eventData.id,
+          name: eventData.name,
+          company: Array.isArray(eventData.company)
+            ? eventData.company[0]
+            : eventData.company
+        }
+      }
+
+      setSession(cleanedSession)
+    } catch (error: any) {
+      console.error('Error fetching session:', error)
+      toast.error('Voting session not found or not active')
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
 
   const fetchPhotosWithVotes = async () => {
-    if (!attendee) return
-
     try {
       const { data: photosData, error } = await supabase
         .from('voting_photos')
@@ -139,7 +149,7 @@ export default function VotingPage() {
             .select('id, attendee_id')
             .eq('voting_photo_id', photo.id)
 
-          const userVoted = votes?.some(vote => vote.attendee_id === attendee.id) || false
+          const userVoted = attendee ? votes?.some(vote => vote.attendee_id === attendee.id) || false : false
 
           return {
             ...photo,
@@ -207,6 +217,7 @@ export default function VotingPage() {
       setShowLogin(false)
       toast.success(`Welcome, ${data.name}!`)
     } catch (error: any) {
+      console.error('Login error:', error)
       toast.error('Error logging in: ' + error.message)
     } finally {
       setLoading(false)

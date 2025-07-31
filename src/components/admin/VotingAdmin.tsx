@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Vote, Image, Edit, Trash2, Play, Pause, Upload } from 'lucide-react'
+import { Plus, Vote, Image, Edit, Trash2, Play, Pause, Upload, RotateCcw } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
 
 import toast from 'react-hot-toast'
@@ -21,6 +21,8 @@ interface VotingSession {
   description: string | null
   is_active: boolean
   created_at: string
+  timer_duration?: number | null
+  timer_start?: string | null
   photos?: VotingPhoto[]
 }
 
@@ -49,7 +51,8 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
   const [votingQR, setVotingQR] = useState('')
   const [sessionForm, setSessionForm] = useState({
     title: '',
-    description: ''
+    description: '',
+    timer_duration: 0
   })
   const [photoForm, setPhotoForm] = useState({
     title: '',
@@ -169,7 +172,8 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
           .from('voting_sessions')
           .update({
             title: sessionForm.title,
-            description: sessionForm.description || null
+            description: sessionForm.description || null,
+            timer_duration: sessionForm.timer_duration > 0 ? sessionForm.timer_duration : null
           })
           .eq('id', editingSession.id)
 
@@ -181,7 +185,8 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
           .insert([{
             event_id: selectedEventId,
             title: sessionForm.title,
-            description: sessionForm.description || null
+            description: sessionForm.description || null,
+            timer_duration: sessionForm.timer_duration > 0 ? sessionForm.timer_duration : null
           }])
 
         if (error) throw error
@@ -227,7 +232,10 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
 
       const { error } = await supabase
         .from('voting_sessions')
-        .update({ is_active: isActive })
+        .update({ 
+          is_active: isActive,
+          timer_start: isActive ? new Date().toISOString() : null
+        })
         .eq('id', sessionId)
 
       if (error) throw error
@@ -276,8 +284,56 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
     }
   }
 
+  const resetVoting = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to reset all votes for this voting session? This action cannot be undone.')) return
+
+    try {
+      // First, get all photos for this session
+      const { data: photos, error: photosError } = await supabase
+        .from('voting_photos')
+        .select('id')
+        .eq('voting_session_id', sessionId)
+
+      if (photosError) throw photosError
+
+      if (photos && photos.length > 0) {
+        const photoIds = photos.map(photo => photo.id)
+        
+        // Delete all votes for all photos in this session
+        const { error: votesError } = await supabase
+          .from('votes')
+          .delete()
+          .in('voting_photo_id', photoIds)
+
+        if (votesError) throw votesError
+      }
+
+      toast.success('All votes have been reset successfully')
+      fetchPhotos() // Refresh the photos to show updated vote counts
+    } catch (error: any) {
+      toast.error('Error resetting votes: ' + error.message)
+    }
+  }
+
+  const resetPhotoVotes = async (photoId: string, photoTitle: string) => {
+    if (!confirm(`Are you sure you want to reset all votes for "${photoTitle}"? This action cannot be undone.`)) return
+
+    try {
+      const { error } = await supabase
+        .from('votes')
+        .delete()
+        .eq('voting_photo_id', photoId)
+
+      if (error) throw error
+      toast.success(`Votes for "${photoTitle}" have been reset successfully`)
+      fetchPhotos() // Refresh the photos to show updated vote counts
+    } catch (error: any) {
+      toast.error('Error resetting photo votes: ' + error.message)
+    }
+  }
+
   const resetSessionForm = () => {
-    setSessionForm({ title: '', description: '' })
+    setSessionForm({ title: '', description: '', timer_duration: 0 })
     setEditingSession(null)
     setShowSessionModal(false)
   }
@@ -291,7 +347,8 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
     setEditingSession(session)
     setSessionForm({
       title: session.title,
-      description: session.description || ''
+      description: session.description || '',
+      timer_duration: session.timer_duration || 0
     })
     setShowSessionModal(true)
   }
@@ -418,6 +475,13 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                       <Edit className="h-4 w-4" />
                     </button>
                     <button
+                      onClick={() => resetVoting(session.id)}
+                      className="text-gray-400 hover:text-orange-600 transition-colors"
+                      title="Reset all votes"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => deleteSession(session.id)}
                       className="text-gray-400 hover:text-red-600 transition-colors"
                     >
@@ -427,6 +491,11 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                 </div>
                 <div className="text-xs text-gray-500">
                   Created {new Date(session.created_at).toLocaleDateString()}
+                  {session.timer_duration && session.timer_duration > 0 && (
+                    <span className="ml-2 text-blue-600">
+                      • Timer: {session.timer_duration} minutes
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -448,14 +517,26 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                 <Image className="h-6 w-6 mr-2" />
                 Voting Photos
               </h2>
-              <button
-                onClick={() => setShowPhotoModal(true)}
-                disabled={!selectedSessionId}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center disabled:opacity-50"
-              >
-                <Plus className="h-5 w-5 mr-2" />
-                Add Photo
-              </button>
+              <div className="flex space-x-2">
+                {photos.length > 0 && (
+                  <button
+                    onClick={() => resetVoting(selectedSessionId)}
+                    className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center"
+                    title="Reset all votes for this session"
+                  >
+                    <RotateCcw className="h-5 w-5 mr-2" />
+                    Reset All Votes
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowPhotoModal(true)}
+                  disabled={!selectedSessionId}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center disabled:opacity-50"
+                >
+                  <Plus className="h-5 w-5 mr-2" />
+                  Add Photo
+                </button>
+              </div>
             </div>
 
             {selectedSessionId && votingQR && (
@@ -464,8 +545,20 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                   <div>
                     <h3 className="font-medium text-blue-900 mb-2">Voting QR Code</h3>
                     <p className="text-sm text-blue-700">Share this QR code for attendees to vote</p>
+                    <p className="text-xs text-blue-600 mt-1">URL: {window.location.origin}/public/voting/{selectedSessionId}</p>
                   </div>
-                  <img src={votingQR} alt="Voting QR Code" className="w-24 h-24 border rounded-lg" />
+                  <div className="text-center">
+                    <img src={votingQR} alt="Voting QR Code" className="w-24 h-24 border rounded-lg mx-auto mb-2" />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/public/voting/${selectedSessionId}`)
+                        toast.success('Voting URL copied to clipboard!')
+                      }}
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                    >
+                      Copy URL
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -485,12 +578,21 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                         <span className="text-sm text-gray-600">
                           {photo.vote_count} votes
                         </span>
-                        <button
-                          onClick={() => deletePhoto(photo.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex space-x-1">
+                          <button
+                            onClick={() => resetPhotoVotes(photo.id, photo.title)}
+                            className="text-orange-600 hover:text-orange-700"
+                            title="Reset votes for this photo"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deletePhoto(photo.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -545,6 +647,21 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
                   rows={3}
                   placeholder="Enter description (optional)"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Timer Duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={sessionForm.timer_duration}
+                  onChange={(e) => setSessionForm({ ...sessionForm, timer_duration: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter timer duration in minutes (0 = no timer)"
+                />
+                <p className="text-xs text-gray-500 mt-1">Set to 0 for no timer</p>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">

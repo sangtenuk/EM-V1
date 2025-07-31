@@ -1,6 +1,6 @@
 /* import React, { useState, useEffect } from 'react' */
  import { useState, useEffect } from 'react' 
-import { TrendingUp, Calendar, Users, Building2, BarChart3, Download, FileText } from 'lucide-react'
+import { TrendingUp, Calendar, Users, Building2, BarChart3, Download, FileText, Trophy, Award, Star } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -28,6 +28,24 @@ interface Event {
   checkedIn: number
 }
 
+interface Winner {
+  id: string
+  name: string
+  type: 'lucky_draw' | 'voting' | 'table'
+  prize?: string
+  position?: number
+  company?: string
+  table_number?: number
+}
+
+interface VotingWinner {
+  id: string
+  title: string
+  photo_url: string
+  vote_count: number
+  vote_percentage: number
+}
+
 export default function MonthlyProgress() {
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
   const [companyProgress, setCompanyProgress] = useState<CompanyProgress[]>([])
@@ -37,6 +55,7 @@ export default function MonthlyProgress() {
   const [exportType, setExportType] = useState<'monthly' | 'annual' | 'event'>('monthly')
   const [selectedEvent, setSelectedEvent] = useState<string>('')
   const [includeAttendees, setIncludeAttendees] = useState<boolean>(true)
+  const [includeWinners, setIncludeWinners] = useState<boolean>(true)
 
   useEffect(() => {
     fetchMonthlyProgress()
@@ -171,12 +190,83 @@ export default function MonthlyProgress() {
         name: event.name,
         date: event.date,
         attendees: event.attendees?.length || 0,
-        checkedIn: event.attendees?.filter(a => a.checked_in).length || 0
+        checkedIn: event.attendees?.filter((a: any) => a.checked_in).length || 0
       })) || []
 
       setEvents(eventStats)
     } catch (error: any) {
       console.error('Error fetching events:', error)
+    }
+  }
+
+
+
+  const fetchEventWinners = async (eventId: string): Promise<Winner[]> => {
+    try {
+      const winners: Winner[] = []
+
+      // Fetch lucky draw winners (custom prizes)
+      const { data: customPrizes, error: prizesError } = await supabase
+        .from('custom_prizes')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('position', { ascending: false })
+
+      if (!prizesError && customPrizes) {
+        // Note: In a real implementation, you'd need a winners table
+        // For now, we'll create placeholder winners based on prizes
+        customPrizes.forEach(prize => {
+          winners.push({
+            id: `prize-${prize.id}`,
+            name: `Winner ${prize.position}`,
+            type: 'lucky_draw',
+            prize: prize.title,
+            position: prize.position
+          })
+        })
+      }
+
+      // Fetch voting winners
+      const { data: votingSessions, error: sessionsError } = await supabase
+        .from('voting_sessions')
+        .select(`
+          id,
+          title,
+          voting_photos(
+            id,
+            title,
+            photo_url,
+            vote_count
+          )
+        `)
+        .eq('event_id', eventId)
+
+      if (!sessionsError && votingSessions) {
+        votingSessions.forEach(session => {
+          if (session.voting_photos && session.voting_photos.length > 0) {
+            // Get the photo with the most votes
+            const topPhoto = session.voting_photos.reduce((prev, current) => 
+              (prev.vote_count > current.vote_count) ? prev : current
+            )
+            
+            const totalVotes = session.voting_photos.reduce((sum, photo) => sum + photo.vote_count, 0)
+            const votePercentage = totalVotes > 0 ? (topPhoto.vote_count / totalVotes) * 100 : 0
+
+            winners.push({
+              id: `voting-${topPhoto.id}`,
+              name: topPhoto.title,
+              type: 'voting',
+              prize: `${session.title} Winner`,
+              position: 1
+            })
+          }
+        })
+      }
+
+      return winners
+    } catch (error) {
+      console.error('Error fetching winners:', error)
+      return []
     }
   }
 
@@ -202,6 +292,73 @@ export default function MonthlyProgress() {
     }).join(' ')
     
     return `M ${points}`
+  }
+
+
+
+  const generatePremiumCSV = (eventDetails: any, winners: Winner[], attendees: any[]) => {
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
+    
+    let csvContent = ''
+    
+    // Header with premium styling information
+    csvContent += '🎉 EVENT MANAGEMENT SYSTEM - PREMIUM REPORT\n'
+    csvContent += '='.repeat(80) + '\n'
+    csvContent += `📅 Report Generated: ${currentDate}\n`
+    csvContent += `🎯 Event: ${eventDetails.name}\n`
+    csvContent += `📅 Event Date: ${eventDetails.date}\n`
+    csvContent += `📍 Location: ${eventDetails.location || 'N/A'}\n`
+    csvContent += `📝 Description: ${eventDetails.description || 'N/A'}\n`
+    csvContent += '='.repeat(80) + '\n\n'
+    
+    // Event Overview Section
+    csvContent += '📊 EVENT OVERVIEW\n'
+    csvContent += '-'.repeat(40) + '\n'
+    csvContent += `Total Attendees,${eventDetails.attendees?.length || 0}\n`
+    csvContent += `Checked In,${eventDetails.attendees?.filter((a: any) => a.checked_in).length || 0}\n`
+    csvContent += `Winners,${winners.length}\n`
+    csvContent += `Check-in Rate,${Math.round((eventDetails.attendees?.filter((a: any) => a.checked_in).length / (eventDetails.attendees?.length || 1)) * 100)}%\n`
+    csvContent += '\n'
+    
+    // Winners Section
+    if (winners.length > 0) {
+      csvContent += '🏆 WINNERS\n'
+      csvContent += '-'.repeat(40) + '\n'
+      csvContent += 'Position,Type,Winner Name,Prize\n'
+      winners.forEach((winner, index) => {
+        csvContent += `${winner.position || index + 1},${winner.type.toUpperCase()},${winner.name},${winner.prize || 'N/A'}\n`
+      })
+      csvContent += '\n'
+    }
+    
+    // Attendees Section
+    if (attendees.length > 0) {
+      csvContent += '👥 ATTENDEE DETAILS\n'
+      csvContent += '-'.repeat(40) + '\n'
+      csvContent += 'Name,Email,Phone,Status,Registration Date\n'
+      attendees.forEach((attendee: any) => {
+        const status = attendee.checked_in ? '✓ Checked In' : '○ Not Checked'
+        const registrationDate = new Date(attendee.created_at).toLocaleDateString()
+        csvContent += `${attendee.name || 'N/A'},${attendee.email || 'N/A'},${attendee.phone || 'N/A'},${status},${registrationDate}\n`
+      })
+      csvContent += '\n'
+    }
+    
+    // Footer
+    csvContent += '='.repeat(80) + '\n'
+    csvContent += '📋 Report Summary\n'
+    csvContent += '-'.repeat(40) + '\n'
+    csvContent += `• Total Records: ${attendees.length + winners.length}\n`
+    csvContent += `• Report Type: Premium Event Report\n`
+    csvContent += `• Generated By: Event Management System\n`
+    csvContent += `• Format: CSV (Comma Separated Values)\n`
+    csvContent += '='.repeat(80) + '\n'
+    
+    return csvContent
   }
 
   const exportReport = async () => {
@@ -291,29 +448,28 @@ export default function MonthlyProgress() {
             return
           }
 
-          // CSV header for event report
-          csvContent = 'EVENT DETAILS\n'
-          csvContent += 'Field,Value\n'
-          csvContent += `Event Name,${eventDetails.name}\n`
-          csvContent += `Event Date,${eventDetails.date}\n`
-          csvContent += `Location,${eventDetails.location || 'N/A'}\n`
-          csvContent += `Description,${eventDetails.description || 'N/A'}\n`
-          csvContent += `Total Attendees,${eventDetails.attendees?.length || 0}\n`
-          csvContent += `Checked In,${eventDetails.attendees?.filter(a => a.checked_in).length || 0}\n`
-          
-          // Include attendee details if option is enabled
-          if (includeAttendees && eventDetails.attendees && eventDetails.attendees.length > 0) {
-            csvContent += '\nATTENDEE DETAILS\n'
-            csvContent += 'Name,Email,Phone,Checked In,Registration Date\n'
-            eventDetails.attendees.forEach(attendee => {
-              const checkedIn = attendee.checked_in ? 'Yes' : 'No'
-              const registrationDate = new Date(attendee.created_at).toLocaleDateString()
-              csvContent += `${attendee.name || 'N/A'},${attendee.email || 'N/A'},${attendee.phone || 'N/A'},${checkedIn},${registrationDate}\n`
-            })
+          // Fetch winners if enabled
+          let winners: Winner[] = []
+          if (includeWinners) {
+            winners = await fetchEventWinners(selectedEvent)
           }
+
+          // Generate premium CSV report
+          const eventCsvContent = generatePremiumCSV(eventDetails, winners, includeAttendees ? eventDetails.attendees || [] : [])
           
-          fileName = `event-report-${eventDetails.name.replace(/[^a-zA-Z0-9]/g, '-')}.csv`
-          break
+          // Create and download CSV file
+          const blob = new Blob([eventCsvContent], { type: 'text/csv;charset=utf-8;' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `event-report-${eventDetails.name.replace(/[^a-zA-Z0-9]/g, '-')}.csv`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+
+          toast.success('Premium CSV report exported successfully!')
+          return
       }
 
       // Create and download CSV file
@@ -385,6 +541,32 @@ export default function MonthlyProgress() {
                   />
                   <label htmlFor="includeAttendees" className="text-sm text-gray-700">
                     Include Attendees
+                  </label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="includeWinners"
+                    checked={includeWinners}
+                    onChange={(e) => setIncludeWinners(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="includeWinners" className="text-sm text-gray-700">
+                    Include Winners
+                  </label>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="includeWinners"
+                    checked={includeWinners}
+                    onChange={(e) => setIncludeWinners(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="includeWinners" className="text-sm text-gray-700">
+                    Include Winners
                   </label>
                 </div>
               </>
