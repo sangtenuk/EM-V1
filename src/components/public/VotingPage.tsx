@@ -42,7 +42,6 @@ export default function VotingPage() {
   const [hasVoted, setHasVoted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [voting, setVoting] = useState(false)
-  const [scanningQR, setScanningQR] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [identificationNumber, setIdentificationNumber] = useState('')
   const [showLogin, setShowLogin] = useState(true)
@@ -196,7 +195,6 @@ export default function VotingPage() {
     if (!identificationNumber.trim()) return
 
     try {
-      setScanningQR(true)
       setLoading(true)
 
       const { data, error } = await supabase
@@ -223,7 +221,6 @@ export default function VotingPage() {
       toast.error('Error logging in: ' + error.message)
     } finally {
       setLoading(false)
-      setScanningQR(false)
     }
   }
 
@@ -316,10 +313,10 @@ export default function VotingPage() {
 
               <button
                 type="submit"
-                disabled={loading || scanningQR}
-                className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+                className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
-                {loading ? 'Verifying...' : scanningQR ? 'Processing QR Code...' : 'Join Voting'}
+                {loading ? 'Verifying...' : 'Join Voting'}
               </button>
             </form>
 
