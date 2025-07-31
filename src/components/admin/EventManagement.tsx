@@ -94,6 +94,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     date: '',
     location: '',
     max_attendees: 1000,
+    max_gallery_uploads: 2,
     mode: 'online' as 'offline' | 'online' | 'hybrid',
     custom_background: '',
     custom_logo: '',
@@ -288,6 +289,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
       date: '',
       location: '',
       max_attendees: 1000,
+      max_gallery_uploads: 2,
       mode: 'online',
       custom_background: '',
       custom_logo: '',
@@ -305,6 +307,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
       date: event.date ? new Date(event.date).toISOString().slice(0, 16) : '',
       location: event.location || '',
       max_attendees: event.max_attendees || 1000,
+      max_gallery_uploads: event.max_gallery_uploads || 2,
       mode: event.mode || 'online',
       custom_background: event.custom_background || '',
       custom_logo: event.custom_logo || '',
@@ -580,6 +583,20 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                     onChange={(e) => setFormData({ ...formData, max_attendees: parseInt(e.target.value) || 1000 })}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
                     min="1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Max Gallery Uploads
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.max_gallery_uploads}
+                    onChange={(e) => setFormData({ ...formData, max_gallery_uploads: parseInt(e.target.value) || 2 })}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-300"
+                    min="1"
+                    max="10"
                   />
                 </div>
               </div>

@@ -11,6 +11,7 @@ interface Event {
   id: string
   name: string
   company_id: string
+  max_gallery_uploads?: number
   company: {
     name: string
   }
@@ -36,6 +37,8 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
   const [galleryQR, setGalleryQR] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [maxUploads, setMaxUploads] = useState(2)
+  const [updatingMaxUploads, setUpdatingMaxUploads] = useState(false)
 
   useEffect(() => {
     fetchEvents()
@@ -45,6 +48,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
     if (selectedEventId) {
       fetchPhotos()
       generateGalleryQR()
+      fetchEventDetails()
     }
   }, [selectedEventId])
 
@@ -64,6 +68,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
           id,
           name,
           company_id,
+          max_gallery_uploads,
           company:companies(name)
         `)
 
@@ -90,6 +95,44 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
       }
     } catch (error: any) {
       toast.error('Error fetching events: ' + error.message)
+    }
+  }
+
+  const fetchEventDetails = async () => {
+    if (!selectedEventId) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('max_gallery_uploads')
+        .eq('id', selectedEventId)
+        .single()
+
+      if (error) throw error
+      
+      setMaxUploads(data.max_gallery_uploads || 2)
+    } catch (error: any) {
+      console.error('Error fetching event details:', error)
+    }
+  }
+
+  const updateMaxUploads = async () => {
+    if (!selectedEventId) return
+    
+    try {
+      setUpdatingMaxUploads(true)
+      const { error } = await supabase
+        .from('events')
+        .update({ max_gallery_uploads: maxUploads })
+        .eq('id', selectedEventId)
+
+      if (error) throw error
+      
+      toast.success('Upload limit updated successfully')
+    } catch (error: any) {
+      toast.error('Error updating upload limit: ' + error.message)
+    } finally {
+      setUpdatingMaxUploads(false)
     }
   }
 
@@ -419,11 +462,38 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             )}
 
             {selectedEventId && (
-              <div className="bg-blue-50 rounded-lg p-4">
-                <div className="text-blue-700 font-medium mb-1">Gallery Stats</div>
-                <div className="text-2xl font-bold text-blue-900">{photos.length}</div>
-                <div className="text-sm text-blue-600">Photos uploaded</div>
-              </div>
+              <>
+                <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <div className="text-blue-700 font-medium mb-1">Gallery Stats</div>
+                  <div className="text-2xl font-bold text-blue-900">{photos.length}</div>
+                  <div className="text-sm text-blue-600">Photos uploaded</div>
+                </div>
+
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="text-green-700 font-medium mb-2">Upload Limit</div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      value={maxUploads}
+                      onChange={(e) => setMaxUploads(parseInt(e.target.value) || 2)}
+                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                    />
+                    <span className="text-sm text-green-600">photos per attendee</span>
+                    <button
+                      onClick={updateMaxUploads}
+                      disabled={updatingMaxUploads}
+                      className="ml-2 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {updatingMaxUploads ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                  <div className="text-xs text-green-600 mt-1">
+                    Default: 2 photos per attendee
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
