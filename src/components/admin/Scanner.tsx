@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"; 
 import { Camera, X, RotateCw, CheckCircle, RefreshCw } from "lucide-react"; 
 import toast from "react-hot-toast"; 
-// import jsQR from "jsqr";
+ import jsQR from "jsqr";
 
 interface ScannerProps {
   onScan: (result: string) => void;
