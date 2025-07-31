@@ -293,7 +293,7 @@ export default function VotingPage() {
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Join Voting</h1>
               <h2 className="text-lg md:text-xl text-purple-600 mb-2">{session.title}</h2>
               <p className="text-gray-600">{session.event.name}</p>
-              <p className="text-sm text-gray-500">{session.event.company.name}</p>
+              <p className="text-sm text-gray-500">{session.event?.company?.name ?? 'No Company'}</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -339,7 +339,7 @@ export default function VotingPage() {
           <div className="text-center">
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{session.title}</h1>
             <p className="text-base md:text-lg text-purple-600 mb-2">{session.event.name}</p>
-            <p className="text-gray-600">{session.event.company.name}</p>
+            <p className="text-gray-600">{session.event?.company?.name ?? 'No Company'}</p>
             {session.description && (
               <p className="text-gray-600 mt-2">{session.description}</p>
             )}
