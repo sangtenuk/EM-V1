@@ -180,12 +180,25 @@ export default function GalleryUpload() {
     <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
-            <Camera className="h-12 w-12 mx-auto mb-4" />
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
-            <p className="text-blue-100">{event.name}</p>
-            <p className="text-blue-200 text-sm">{event.company.name}</p>
-          </div>
+     
+          
+<div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
+  <Camera className="h-12 w-12 mx-auto mb-4" />
+  <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
+
+  {event ? (
+    <>
+      <p className="text-blue-100">{event.name}</p>
+      <p className="text-blue-200 text-sm">{event.company?.name ?? ''}</p>
+    </>
+  ) : (
+    <>
+      <div className="h-4 w-48 bg-blue-500/40 rounded mx-auto animate-pulse mb-1" />
+      <div className="h-3 w-36 bg-blue-400/40 rounded mx-auto animate-pulse" />
+    </>
+  )}
+</div>
+
 
           <div className="px-4 md:px-6 py-6 md:py-8">
             <div className="space-y-6">
