@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase, getStorageUrl } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import { Calendar, MapPin, Camera, Upload, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import QRCode from 'qrcode'
@@ -135,6 +135,11 @@ export default function Registration() {
         .eq('identification_number', formData.identification_number)
         .single()
 
+      if (checkError && checkError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected when no duplicate exists
+        throw checkError
+      }
+
       if (existingAttendee) {
         toast.error(`Registration failed: An attendee with ID ${formData.identification_number} is already registered for this event.`)
         setSubmitting(false)
@@ -155,7 +160,7 @@ export default function Registration() {
         try {
           const photoBlob = await fetch(facePhoto).then(r => r.blob())
           const fileName = `face_photos/${attendeeId}.jpg`
-          const { data: uploadData, error: uploadError } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
             .from('attendee-photos')
             .upload(fileName, photoBlob, {
               contentType: 'image/jpeg'
