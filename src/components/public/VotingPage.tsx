@@ -292,25 +292,18 @@ export default function VotingPage() {
               <Vote className="h-16 w-16 text-purple-600 mx-auto mb-4" />
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Join Voting</h1>
               <h2 className="text-lg md:text-xl text-purple-600 mb-2">{session.title}</h2>
-
-<p className="text-gray-600">
-  {loading ? (
-    <span className="inline-block h-4 bg-gray-200 rounded w-32 animate-pulse"></span>
+              {event ? (
+    <>
+      <p className="text-blue-100">{event.name}</p>
+      <p className="text-blue-200 text-sm">{event.company?.name ?? ''}</p>
+    </>
   ) : (
-    session.event.name
+    <>
+      <div className="h-4 w-48 bg-blue-500/40 rounded mx-auto animate-pulse mb-1" />
+      <div className="h-3 w-36 bg-blue-400/40 rounded mx-auto animate-pulse" />
+    </>
   )}
-</p>
-<p className="text-sm text-gray-500">
-  {loading ? (
-    <span className="inline-block h-3 bg-gray-200 rounded w-24 animate-pulse"></span>
-  ) : (
-    session.event.company.name
-  )}
-</p>
-
-
-              
-            
+             
               
             </div>
 
@@ -357,7 +350,7 @@ export default function VotingPage() {
           <div className="text-center">
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{session.title}</h1>
             <p className="text-base md:text-lg text-purple-600 mb-2">{session.event.name}</p>
-            <p className="text-gray-600">{session.event.company.name}</p>
+            <p className="text-gray-600">{session.event?.company?.name ?? 'No Company'}</p>
             {session.description && (
               <p className="text-gray-600 mt-2">{session.description}</p>
             )}
