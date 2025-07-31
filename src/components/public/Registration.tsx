@@ -27,6 +27,7 @@ export default function Registration() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [scanningQR, setScanningQR] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -370,10 +371,10 @@ export default function Registration() {
           
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-            disabled={submitting}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={submitting || scanningQR}
           >
-            {submitting ? 'Registering...' : 'Register for Event'}
+            {submitting ? 'Registering...' : scanningQR ? 'Processing QR Code...' : 'Register for Event'}
           </button>
         </form>
       </div>

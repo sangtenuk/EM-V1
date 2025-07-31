@@ -17,6 +17,7 @@ export default function GalleryUpload() {
   const { eventId } = useParams()
   const [event, setEvent] = useState<Event | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [scanningQR, setScanningQR] = useState(false)
   const [uploaded, setUploaded] = useState(false)
   const [attendeeName, setAttendeeName] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -250,11 +251,11 @@ export default function GalleryUpload() {
               {selectedFile && (
                 <button
                   onClick={uploadPhoto}
-                  disabled={uploading}
-                  className="w-full bg-green-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 text-sm md:text-base"
+                  disabled={uploading || scanningQR}
+                  className="w-full bg-green-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
                 >
                   <Upload className="h-5 w-5 mr-2" />
-                  {uploading ? 'Uploading...' : 'Upload Photo'}
+                  {uploading ? 'Uploading...' : scanningQR ? 'Processing QR Code...' : 'Upload Photo'}
                 </button>
               )}
             </div>

@@ -27,6 +27,7 @@ export default function CheckIn() {
   const { eventId } = useParams()
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
+  const [scanningQR, setScanningQR] = useState(false)
   const [identificationNumber, setIdentificationNumber] = useState('')
   const [checkInResult, setCheckInResult] = useState<CheckInResult | null>(null)
   const [isCheckingIn, setIsCheckingIn] = useState(false)
@@ -79,6 +80,7 @@ export default function CheckIn() {
     }
 
     setIsCheckingIn(true)
+    setScanningQR(true)
     setCheckInResult(null)
 
     try {
@@ -95,6 +97,7 @@ export default function CheckIn() {
       toast.error('Error processing check-in: ' + error.message)
     } finally {
       setIsCheckingIn(false)
+      setScanningQR(false)
     }
   }
 
@@ -237,13 +240,18 @@ export default function CheckIn() {
 
                 <button
                   type="submit"
-                  disabled={isCheckingIn || !identificationNumber.trim()}
+                  disabled={isCheckingIn || scanningQR || !identificationNumber.trim()}
                   className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCheckingIn ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                       Checking In...
+                    </>
+                  ) : scanningQR ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      Processing QR Code...
                     </>
                   ) : (
                     <>
