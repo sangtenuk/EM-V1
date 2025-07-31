@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users, Plus, Edit, Trash2, Search, Filter, Download, Upload } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, Search, Download, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 

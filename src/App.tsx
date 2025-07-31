@@ -55,7 +55,7 @@ function App() {
         setUser(session?.user ?? null)
         setLoading(false)
       })
-      .catch((error) => {
+      .catch(() => {
         setHasValidConfig(false)
         setLoading(false)
       })

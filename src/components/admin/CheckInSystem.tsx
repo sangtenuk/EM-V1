@@ -682,47 +682,32 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
                     </div>
                   </div>
                 )}
-                <form onSubmit={handleManualCheckIn} className="space-y-3 mt-4">
-                  <input
-                    type="text"
-                    value={manualId}
-                    onChange={(e) => setManualId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter ID number or Staff ID"
-                    autoFocus
-                    disabled={!selectedEventId}
-                  />
-                  <button
-                    type="submit"
-                    className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
-                    disabled={!selectedEventId}
-                  >
-                    <UserCheck className="h-4 w-4 mr-2" />
-                    Check In
-                  </button>
-                </form>
               </div>
             </div>
           )
         })()}
 
-        {/* QR Scanner */}
+        {/* QR Scanner and Manual Check-in */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Camera className="h-6 w-6 mr-2" />
-            Camera Scanner
+            Check-In System
           </h2>
           
-          <div className="space-y-4">
-            <Scanner 
-              onScan={handleQRScan}
-              onError={(error) => toast.error(error)}
-              autoStart={true}
-              eventSelected={!!selectedEventId}
-            />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Camera Scanner - Left Side */}
+            <div className="space-y-4">
+              <h3 className="font-medium mb-2">Camera Scanner</h3>
+              <Scanner 
+                onScan={handleQRScan}
+                onError={(error) => toast.error(error)}
+                autoStart={true}
+                eventSelected={!!selectedEventId}
+              />
+            </div>
 
-            {/* Manual Entry */}
-            <div className="border-t pt-4">
+            {/* Manual Entry - Right Side */}
+            <div className="space-y-4">
               <h3 className="font-medium mb-2">Manual ID Entry</h3>
               <form onSubmit={handleManualCheckIn} className="space-y-3">
                 <input
@@ -731,10 +716,12 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
                   onChange={(e) => setManualId(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Enter ID number or Staff ID"
+                  autoFocus
                 />
                 <button
                   type="submit"
                   className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+                  disabled={!selectedEventId}
                 >
                   <UserCheck className="h-4 w-4 mr-2" />
                   Check In
@@ -768,41 +755,7 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
           </div>
         )}
 
-        {/* Recent Check-ins */}
-        <div className="bg-white rounded-lg shadow-md p-6 lg:col-span-2">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <Users className="h-6 w-6 mr-2" />
-            Recent Check-ins
-          </h2>
-          
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {recentCheckIns.map((attendee) => (
-              <div key={attendee.id} className="flex items-center p-3 bg-green-50 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-green-600 mr-3" />
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">{attendee.name}</div>
-                  <div className="text-sm text-gray-600">ID: {attendee.identification_number}</div>
-                  {attendee.staff_id && (
-                    <div className="text-sm text-gray-600">Staff: {attendee.staff_id}</div>
-                  )}
-                  {attendee.table_assignment && (
-                    <div className="text-sm text-blue-700 font-semibold">Table: {attendee.table_assignment}</div>
-                  )}
-                  <div className="text-xs text-gray-500">
-                    {new Date(attendee.check_in_time).toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {recentCheckIns.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No check-ins yet</p>
-              </div>
-            )}
-          </div>
-        </div>
+
 
         {/* Below the check-in form, add attendee management table */}
         {selectedEventId && (
@@ -870,6 +823,42 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
             )}
           </div>
         )}
+
+        {/* Recent Check-ins - Moved to bottom */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <Users className="h-6 w-6 mr-2" />
+            Recent Check-ins
+          </h2>
+          
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {recentCheckIns.map((attendee) => (
+              <div key={attendee.id} className="flex items-center p-3 bg-green-50 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600 mr-3" />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{attendee.name}</div>
+                  <div className="text-sm text-gray-600">ID: {attendee.identification_number}</div>
+                  {attendee.staff_id && (
+                    <div className="text-sm text-gray-600">Staff: {attendee.staff_id}</div>
+                  )}
+                  {attendee.table_assignment && (
+                    <div className="text-sm text-blue-700 font-semibold">Table: {attendee.table_assignment}</div>
+                  )}
+                  <div className="text-xs text-gray-500">
+                    {new Date(attendee.check_in_time).toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {recentCheckIns.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No check-ins yet</p>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Face Detection Modal */}
         {showFaceDetection && (

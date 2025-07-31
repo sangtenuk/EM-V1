@@ -38,13 +38,7 @@ interface Winner {
   table_number?: number
 }
 
-interface VotingWinner {
-  id: string
-  title: string
-  photo_url: string
-  vote_count: number
-  vote_percentage: number
-}
+
 
 export default function MonthlyProgress() {
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])

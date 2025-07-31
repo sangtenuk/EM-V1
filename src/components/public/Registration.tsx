@@ -127,6 +127,20 @@ export default function Registration() {
     if (!event || !formData.name.trim() || !formData.identification_number.trim()) return
     setSubmitting(true)
     try {
+      // Check if identification number already exists for this event
+      const { data: existingAttendee, error: checkError } = await supabase
+        .from('attendees')
+        .select('id, name')
+        .eq('event_id', event.id)
+        .eq('identification_number', formData.identification_number)
+        .single()
+
+      if (existingAttendee) {
+        toast.error(`Registration failed: An attendee with ID ${formData.identification_number} is already registered for this event.`)
+        setSubmitting(false)
+        return
+      }
+
       const attendeeId = uuidv4()
       const qrData = `${attendeeId}|${event.id}|${formData.name}`
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
@@ -136,25 +150,29 @@ export default function Registration() {
       } as any)
 
       // Upload face photo if provided
-   //   let facePhotoUrl = null
-    //  if (facePhoto) {
-     //   const photoBlob = await fetch(facePhoto).then(r => r.blob())
-      //  const fileName = `face_photos/${attendeeId}.jpg`
-       // const { data: uploadData, error: uploadError } = await supabase.storage
-//          .from('attendee-photos')
- //         .upload(fileName, photoBlob, {
-  //          contentType: 'image/jpeg'
-  //        })
-  //      
-  //      if (uploadError) {
-  //        console.error('Error uploading photo:', uploadError)
-  //      } else {
-  //        const { data: { publicUrl } } = supabase.storage
-  //          .from('attendee-photos')
-  //         .getPublicUrl(fileName)
-  //        facePhotoUrl = publicUrl
-  //      }
-  //    }
+      let facePhotoUrl = null
+      if (facePhoto) {
+        try {
+          const photoBlob = await fetch(facePhoto).then(r => r.blob())
+          const fileName = `face_photos/${attendeeId}.jpg`
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('attendee-photos')
+            .upload(fileName, photoBlob, {
+              contentType: 'image/jpeg'
+            })
+          
+          if (uploadError) {
+            console.error('Error uploading photo:', uploadError)
+          } else {
+            const { data: { publicUrl } } = supabase.storage
+              .from('attendee-photos')
+              .getPublicUrl(fileName)
+            facePhotoUrl = publicUrl
+          }
+        } catch (error) {
+          console.error('Error processing face photo:', error)
+        }
+      }
 
       const { error } = await supabase
         .from('attendees')
