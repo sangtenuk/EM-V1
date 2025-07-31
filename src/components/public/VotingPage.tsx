@@ -292,8 +292,26 @@ export default function VotingPage() {
               <Vote className="h-16 w-16 text-purple-600 mx-auto mb-4" />
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Join Voting</h1>
               <h2 className="text-lg md:text-xl text-purple-600 mb-2">{session.title}</h2>
-              <p className="text-gray-600">{session.event.name}</p>
-              <p className="text-sm text-gray-500">{session.event?.company?.name ?? 'No Company'}</p>
+
+<p className="text-gray-600">
+  {loading ? (
+    <span className="inline-block h-4 bg-gray-200 rounded w-32 animate-pulse"></span>
+  ) : (
+    session.event.name
+  )}
+</p>
+<p className="text-sm text-gray-500">
+  {loading ? (
+    <span className="inline-block h-3 bg-gray-200 rounded w-24 animate-pulse"></span>
+  ) : (
+    session.event.company.name
+  )}
+</p>
+
+
+              
+            
+              
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
