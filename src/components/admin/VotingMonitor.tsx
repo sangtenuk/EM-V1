@@ -572,7 +572,7 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
                 <h1 className="text-3xl md:text-4xl font-extrabold mb-3 text-gray-900 tracking-tight text-center">{session?.event?.name || 'Event Name'}</h1>
                 <div className="text-lg md:text-2xl font-bold text-purple-600 mb-2 text-center">{votingSessions.find(s => s.id === selectedSessionId)?.title || 'Voting Title'}</div>
                 {session?.event?.company?.name && (
-                  <div className="text-base md:text-lg font-semibold text-gray-700 text-center opacity-80 mb-2">{session.event.company.name}</div>
+                  <div className="text-base md:text-lg font-semibold text-gray-700 text-center opacity-80 mb-2">{session.event?.company?.name ?? 'No Company'}</div>
                 )}
                 {session?.event?.custom_logo && (
                   <img src={getStorageUrl(session.event.custom_logo)} alt="Event Logo" className="h-16 mt-2 object-contain mx-auto" />
