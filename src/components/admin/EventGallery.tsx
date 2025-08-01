@@ -14,7 +14,6 @@ interface Event {
   max_gallery_uploads?: number
   company: {
     name: string
-    logo_url?: string
   }
 }
 
@@ -70,7 +69,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
           name,
           company_id,
           max_gallery_uploads,
-          company:companies(name, logo_url)
+          company:companies(name)
         `)
 
       // Filter by company if user is a company user
@@ -383,14 +382,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-3">
-          {events.find(e => e.id === selectedEventId)?.company?.logo_url && (
-            <img 
-              src={getStorageUrl(events.find(e => e.id === selectedEventId)?.company?.logo_url || '')} 
-              alt="Company Logo" 
-              className="h-8 w-8 object-contain rounded"
-              onError={(e) => e.currentTarget.style.display = 'none'}
-            />
-          )}
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Event Gallery</h1>
             <p className="text-gray-600 text-sm">Manage photo uploads and slideshow display</p>
