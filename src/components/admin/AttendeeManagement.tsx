@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Users, Plus, Edit, Trash2, Search, Download, Upload } from 'lucide-react'
+import { Users, Plus, Edit, Trash2, Search, Download, Upload, QrCode } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import QRCodeLib from 'qrcode'
 
 interface Event {
   id: string
@@ -25,6 +26,7 @@ interface Attendee {
   check_in_time: string | null
   created_at: string
   event_id: string
+  qr_code?: string
 }
 
 interface AttendeeManagementProps {
@@ -148,6 +150,19 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
     }
 
     try {
+      // Check uniqueness before saving
+      const conflicts = await checkUniqueness(
+        attendeeForm.name,
+        attendeeForm.identification_number,
+        attendeeForm.staff_id,
+        editingAttendee?.id
+      );
+
+      if (conflicts.length > 0) {
+        toast.error(`Validation failed: ${conflicts.join(', ')}`);
+        return;
+      }
+
       if (editingAttendee) {
         // Update attendee
         const { error } = await supabase
@@ -216,6 +231,111 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
       fetchAttendees()
     } catch (error: any) {
       toast.error('Error resetting check-in: ' + error.message)
+    }
+  }
+
+  const generateAttendeeQRCode = async (attendee: Attendee) => {
+    try {
+      const currentPort = window.location.port || '5174';
+      const baseUrl = window.location.port 
+        ? `${window.location.protocol}//${window.location.hostname}:${currentPort}`
+        : window.location.origin;
+      const checkInUrl = `${baseUrl}/public/checkin?event=${selectedEventId}&attendee=${attendee.id}`;
+      
+      const qrCodeDataUrl = await QRCodeLib.toDataURL(checkInUrl, {
+        width: 200,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+      });
+
+      // Update attendee with QR code
+      const { error } = await supabase
+        .from('attendees')
+        .update({ qr_code: qrCodeDataUrl })
+        .eq('id', attendee.id);
+
+      if (error) throw error;
+
+      toast.success('QR Code generated successfully!');
+      fetchAttendees(); // Refresh the attendees list
+    } catch (error: any) {
+      toast.error('Error generating QR code: ' + error.message);
+    }
+  }
+
+  const downloadAttendeeQRCode = (attendee: Attendee) => {
+    if (!attendee.qr_code) return;
+    
+    const link = document.createElement('a');
+    link.href = attendee.qr_code;
+    link.download = `${attendee.name}-qr-code.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  const generateAllQRCodes = async () => {
+    try {
+      const attendeesWithoutQR = attendees.filter(a => !a.qr_code);
+      
+      if (attendeesWithoutQR.length === 0) {
+        toast.success('All attendees already have QR codes!');
+        return;
+      }
+
+      toast.loading(`Generating QR codes for ${attendeesWithoutQR.length} attendees...`);
+
+      for (const attendee of attendeesWithoutQR) {
+        await generateAttendeeQRCode(attendee);
+        // Small delay to prevent overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      toast.success(`Generated QR codes for ${attendeesWithoutQR.length} attendees!`);
+    } catch (error: any) {
+      toast.error('Error generating QR codes: ' + error.message);
+    }
+  }
+
+  const checkUniqueness = async (name: string, identification_number: string, staff_id: string, excludeId?: string) => {
+    try {
+      let query = supabase
+        .from('attendees')
+        .select('id, name, identification_number, staff_id')
+        .eq('event_id', selectedEventId)
+        .or(`name.eq.${name},identification_number.eq.${identification_number}`);
+
+      if (staff_id) {
+        query = query.or(`staff_id.eq.${staff_id}`);
+      }
+
+      if (excludeId) {
+        query = query.neq('id', excludeId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const conflicts: string[] = [];
+      if (data) {
+        data.forEach(attendee => {
+          if (attendee.name.toLowerCase() === name.toLowerCase()) {
+            conflicts.push('Name already exists');
+          }
+          if (attendee.identification_number === identification_number) {
+            conflicts.push('Identification number already exists');
+          }
+          if (staff_id && attendee.staff_id === staff_id) {
+            conflicts.push('Staff ID already exists');
+          }
+        });
+      }
+
+      return conflicts;
+    } catch (error: any) {
+      console.error('Error checking uniqueness:', error);
+      return ['Error checking uniqueness'];
     }
   }
 
@@ -376,6 +496,14 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
               className="hidden"
             />
           </label>
+          <button
+            onClick={generateAllQRCodes}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center"
+            title="Generate QR codes for all attendees"
+          >
+            <QrCode className="h-4 w-4 mr-2" />
+            Generate All QR
+          </button>
         </div>
       </div>
 
@@ -505,6 +633,9 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        QR Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -545,6 +676,28 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
                               {new Date(attendee.check_in_time).toLocaleString()}
                             </div>
                           )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex space-x-2">
+                            {attendee.qr_code ? (
+                              <img 
+                                src={attendee.qr_code} 
+                                alt="QR Code" 
+                                className="w-8 h-8 border rounded"
+                                title="Click to download"
+                                onClick={() => downloadAttendeeQRCode(attendee)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            ) : (
+                              <button
+                                onClick={() => generateAttendeeQRCode(attendee)}
+                                className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex items-center bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-all duration-300"
+                                title="Generate QR Code"
+                              >
+                                <QrCode className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex space-x-2">

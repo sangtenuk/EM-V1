@@ -14,6 +14,7 @@ interface Event {
   max_gallery_uploads?: number
   company: {
     name: string
+    logo_url?: string
   }
 }
 
@@ -69,7 +70,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
           name,
           company_id,
           max_gallery_uploads,
-          company:companies(name)
+          company:companies(name, logo_url)
         `)
 
       // Filter by company if user is a company user
@@ -380,43 +381,53 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Event Gallery</h1>
-          <p className="text-gray-600 mt-2">Manage photo uploads and slideshow display</p>
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center space-x-3">
+          {events.find(e => e.id === selectedEventId)?.company?.logo_url && (
+            <img 
+              src={getStorageUrl(events.find(e => e.id === selectedEventId)?.company?.logo_url || '')} 
+              alt="Company Logo" 
+              className="h-8 w-8 object-contain rounded"
+              onError={(e) => e.currentTarget.style.display = 'none'}
+            />
+          )}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Event Gallery</h1>
+            <p className="text-gray-600 text-sm">Manage photo uploads and slideshow display</p>
+          </div>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex space-x-2">
           <button
             onClick={shufflePhotos}
             disabled={photos.length === 0}
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center disabled:opacity-50"
+            className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-700 transition-colors flex items-center disabled:opacity-50"
           >
-            <Shuffle className="h-5 w-5 mr-2" />
+            <Shuffle className="h-4 w-4 mr-1" />
             Shuffle
           </button>
           <button
             onClick={() => setIsSlideshow(!isSlideshow)}
             disabled={photos.length === 0}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {isSlideshow ? 'Stop Slideshow' : 'Start Slideshow'}
+            {isSlideshow ? 'Stop' : 'Start'} Slideshow
           </button>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
             disabled={photos.length === 0}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+            className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700 transition-colors disabled:opacity-50"
           >
-            {isFullscreen ? <Minimize2 className="h-5 w-5 mr-2" /> : <Maximize2 className="h-5 w-5 mr-2" />}
-            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            {isFullscreen ? <Minimize2 className="h-4 w-4 mr-1" /> : <Maximize2 className="h-4 w-4 mr-1" />}
+            {isFullscreen ? 'Exit' : 'Full'}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* Controls */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <QrCode className="h-6 w-6 mr-2" />
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center">
+            <QrCode className="h-5 w-5 mr-2" />
             Gallery Setup
           </h2>
 
@@ -463,14 +474,14 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
 
             {selectedEventId && (
               <>
-                <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                  <div className="text-blue-700 font-medium mb-1">Gallery Stats</div>
-                  <div className="text-2xl font-bold text-blue-900">{photos.length}</div>
-                  <div className="text-sm text-blue-600">Photos uploaded</div>
+                <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                  <div className="text-blue-700 font-medium text-sm">Gallery Stats</div>
+                  <div className="text-xl font-bold text-blue-900">{photos.length}</div>
+                  <div className="text-xs text-blue-600">Photos uploaded</div>
                 </div>
 
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="text-green-700 font-medium mb-2">Upload Limit</div>
+                <div className="bg-green-50 rounded-lg p-3">
+                  <div className="text-green-700 font-medium text-sm mb-2">Upload Limit</div>
                   <div className="flex items-center space-x-2">
                     <input
                       type="number"
@@ -478,19 +489,19 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                       max="10"
                       value={maxUploads}
                       onChange={(e) => setMaxUploads(parseInt(e.target.value) || 2)}
-                      className="w-16 px-2 py-1 border border-gray-300 rounded text-center"
+                      className="w-12 px-1 py-0.5 border border-gray-300 rounded text-center text-sm"
                     />
-                    <span className="text-sm text-green-600">photos per attendee</span>
+                    <span className="text-xs text-green-600">photos/attendee</span>
                     <button
                       onClick={updateMaxUploads}
                       disabled={updatingMaxUploads}
-                      className="ml-2 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+                      className="ml-1 bg-green-600 text-white px-2 py-0.5 rounded text-xs hover:bg-green-700 disabled:opacity-50"
                     >
                       {updatingMaxUploads ? 'Saving...' : 'Save'}
                     </button>
                   </div>
                   <div className="text-xs text-green-600 mt-1">
-                    Default: 2 photos per attendee
+                    Default: 2 photos
                   </div>
                 </div>
               </>
@@ -499,16 +510,16 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
         </div>
 
         {/* Display */}
-        <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'lg:col-span-2'}`}>
-          <div className={`${isFullscreen ? 'h-full' : 'bg-white rounded-lg shadow-md p-6'}`}>
+        <div className={`${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'lg:col-span-3'}`}>
+          <div className={`${isFullscreen ? 'h-full' : 'bg-white rounded-lg shadow-md p-4'}`}>
             {!isFullscreen && (
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Image className="h-6 w-6 mr-2" />
+              <h2 className="text-lg font-semibold mb-3 flex items-center">
+                <Image className="h-5 w-5 mr-2" />
                 Gallery Display
               </h2>
             )}
             
-            <div className={`${isFullscreen ? 'h-full' : 'aspect-video bg-gray-100 rounded-lg overflow-hidden mb-4'}`}>
+            <div className={`${isFullscreen ? 'h-full' : 'aspect-video bg-gray-100 rounded-lg overflow-hidden mb-3'}`}>
               {selectedEventId ? (
                 <SlideshowDisplay />
               ) : (
@@ -544,21 +555,21 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
 
           {/* Photo Grid */}
           {photos.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-6 mt-6">
-              <h2 className="text-xl font-semibold mb-4">All Photos</h2>
+            <div className="bg-white rounded-lg shadow-md p-4 mt-4">
+              <h2 className="text-lg font-semibold mb-3">All Photos</h2>
               
               {loading ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-8 gap-2">
                   {photos.map((photo, index) => (
                     <div key={photo.id} className="relative group">
                       <img
                         src={photo.photo_url}
                         alt="Gallery"
-                        className="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                        className="w-full h-20 object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={() => setCurrentSlideIndex(index)}
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all rounded-lg flex items-center justify-center">

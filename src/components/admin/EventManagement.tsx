@@ -9,17 +9,19 @@ import QRCodeLib from 'qrcode'
 
 // Extend Event type for UI compatibility
 interface UIEvent extends HybridEvent {
-  company: { name: string };
+  company: { name: string; logo_url?: string };
   attendee_count: number;
   checked_in_count: number;
   offline_qr?: string | null;
   custom_background?: string | null;
   custom_logo?: string | null;
+  max_gallery_uploads?: number;
 }
 
 interface Company {
   id: string
   name: string
+  logo_url?: string
 }
 
 interface EventManagementProps {
@@ -110,23 +112,62 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const events = await getEvents(userCompany ? userCompany.company_id : undefined);
-      // Only add UI-specific properties if missing
-      const eventsWithCompany: UIEvent[] = events.map((event: any) => {
+      // Fetch events with company info
+      let query = supabase
+        .from('events')
+        .select(`
+          id,
+          name,
+          description,
+          date,
+          location,
+          max_attendees,
+          max_gallery_uploads,
+          registration_qr,
+          created_at,
+          company_id,
+          company:companies(name, logo_url)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (userCompany) {
+        query = query.eq('company_id', userCompany.company_id);
+      }
+
+      const { data: events, error } = await query;
+      if (error) throw error;
+
+      // Fetch attendee counts for all events
+      const eventIds = events?.map(e => e.id) || [];
+      const { data: attendees, error: attendeesError } = await supabase
+        .from('attendees')
+        .select('id, event_id, checked_in')
+        .in('event_id', eventIds);
+
+      if (attendeesError) throw attendeesError;
+
+      // Calculate stats for each event
+      const eventsWithStats: UIEvent[] = (events || []).map((event: any) => {
+        const eventAttendees = attendees?.filter(a => a.event_id === event.id) || [];
+        const attendee_count = eventAttendees.length;
+        const checked_in_count = eventAttendees.filter(a => a.checked_in).length;
+
         return {
           ...event,
-          company: event.company && event.company.name ? event.company : { name: '' },
-          attendee_count: typeof event.attendee_count === 'number' ? event.attendee_count : 0,
-          checked_in_count: typeof event.checked_in_count === 'number' ? event.checked_in_count : 0,
+          company: Array.isArray(event.company) ? event.company[0] : event.company,
+          attendee_count,
+          checked_in_count,
           description: event.description ?? null,
           date: event.date ?? null,
           location: event.location ?? null,
           max_attendees: event.max_attendees ?? null,
+          max_gallery_uploads: event.max_gallery_uploads ?? 2,
           registration_qr: event.registration_qr ?? null,
           created_at: event.created_at ?? '',
         };
       });
-      setEvents(eventsWithCompany);
+
+      setEvents(eventsWithStats);
     } catch (error: any) {
       toast.error('Error fetching events: ' + error.message);
     } finally {
@@ -136,7 +177,7 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
 
   const fetchCompanies = async () => {
     try {
-      let query = supabase.from('companies').select('*').order('name')
+      let query = supabase.from('companies').select('id, name, logo_url').order('name')
 
       // Filter to only user's company if they are a company user
       if (userCompany) {
@@ -209,8 +250,12 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
         if (error) throw error;
         eventId = data[0].id;
         
-        // Generate QR code for the new event
-        const registrationUrl = `${window.location.origin}/public/register/${eventId}`;
+        // Generate QR code for the new event with correct port
+        const currentPort = window.location.port || '5174';
+        const baseUrl = window.location.port 
+          ? `${window.location.protocol}//${window.location.hostname}:${currentPort}`
+          : window.location.origin;
+        const registrationUrl = `${baseUrl}/public/register/${eventId}`;
         const qrCodeDataUrl = await QRCodeLib.toDataURL(registrationUrl, {
           width: 300,
           margin: 2,
@@ -316,10 +361,11 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
   }
 
   const getRegistrationUrl = (eventId: string) => {
-   // const baseUrl = 'https://nw.hopto.org'
-  //  return `${baseUrl}/public/register/${eventId}`
-    // OVERIDE 
-    return `${window.location.origin}/public/register/${eventId}`
+    const currentPort = window.location.port || '5174';
+    const baseUrl = window.location.port 
+      ? `${window.location.protocol}//${window.location.hostname}:${currentPort}`
+      : window.location.origin;
+    return `${baseUrl}/public/register/${eventId}`
   }
 
   const downloadQRCode = (event: UIEvent) => {
@@ -331,6 +377,35 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const generateNewQRCode = async (event: UIEvent) => {
+    try {
+      const currentPort = window.location.port || '5174';
+      const baseUrl = window.location.port 
+        ? `${window.location.protocol}//${window.location.hostname}:${currentPort}`
+        : window.location.origin;
+      const registrationUrl = `${baseUrl}/public/register/${event.id}`;
+      
+      const qrCodeDataUrl = await QRCodeLib.toDataURL(registrationUrl, {
+        width: 300,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+      });
+
+      // Update event with new QR code
+      const { error } = await supabase
+        .from('events')
+        .update({ registration_qr: qrCodeDataUrl })
+        .eq('id', event.id);
+
+      if (error) throw error;
+
+      toast.success('QR Code regenerated successfully!');
+      fetchEvents(); // Refresh the events list
+    } catch (error: any) {
+      toast.error('Error generating QR code: ' + error.message);
+    }
   };
 
   const getImageUrl = (path: string | null): string => {
@@ -360,45 +435,52 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <div className="flex items-center mb-4">
-            <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl shadow-lg mr-4">
-              <Calendar className="h-8 w-8 text-white" />
+          <div className="flex items-center mb-3">
+            <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mr-3">
+              <Calendar className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Event Management</h1>
-              <p className="text-gray-600 text-lg">Manage events across all companies</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Event Management</h1>
+              <p className="text-gray-600">Manage events across all companies</p>
             </div>
           </div>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+          className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-4 py-2 rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-1"
         >
-          <Plus className="h-5 w-5 mr-2" />
+          <Plus className="h-4 w-4 mr-2" />
           Add Event
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {events.map((event) => (
-          <div key={event.id} className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl transition-all duration-300 card-hover">
-            <div className="mb-2">
-              <h3 className="text-xl font-bold px-3 py-1 rounded-md text-white" style={{ backgroundColor: stringToColor(event.company_id) }}>{event.name}</h3>
+          <div key={event.id} className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/20 p-4 hover:shadow-xl transition-all duration-300 card-hover">
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-lg font-bold px-2 py-1 rounded text-white text-sm" style={{ backgroundColor: stringToColor(event.company_id) }}>{event.name}</h3>
+              {event.company.logo_url && (
+                <img 
+                  src={getStorageUrl(event.company.logo_url)} 
+                  alt="Company Logo" 
+                  className="h-6 w-6 object-contain rounded"
+                  onError={(e) => e.currentTarget.style.display = 'none'}
+                />
+              )}
             </div>
-            <p className="text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">{event.company.name}</p>
+            <p className="text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">{event.company.name}</p>
 
             {event.description && (
-              <p className="text-gray-600 text-sm mb-4 line-clamp-2 bg-gray-50 p-3 rounded-lg">{event.description}</p>
+              <p className="text-gray-600 text-xs mb-3 line-clamp-2 bg-gray-50 p-2 rounded">{event.description}</p>
             )}
 
-            <div className="space-y-3 mb-4">
+            <div className="space-y-2 mb-3">
               {event.date && (
-                <div className="flex items-center text-gray-600 text-sm bg-blue-50 p-2 rounded-lg">
-                  <Calendar className="h-4 w-4 mr-2" />
+                <div className="flex items-center text-gray-600 text-xs bg-blue-50 p-1.5 rounded">
+                  <Calendar className="h-3 w-3 mr-1" />
                   <span>{new Date(event.date).toLocaleDateString('en-US', {
-                    weekday: 'short',
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
@@ -407,75 +489,91 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
                 </div>
               )}
               {event.location && (
-                <div className="flex items-center text-gray-600 text-sm bg-green-50 p-2 rounded-lg">
-                  <MapPin className="h-4 w-4 mr-2" />
+                <div className="flex items-center text-gray-600 text-xs bg-green-50 p-1.5 rounded">
+                  <MapPin className="h-3 w-3 mr-1" />
                   <span className="truncate">{event.location}</span>
                 </div>
               )}
-              <div className="flex items-center text-gray-600 text-sm bg-purple-50 p-2 rounded-lg">
-                <Users className="h-4 w-4 mr-2" />
+              <div className="flex items-center text-gray-600 text-xs bg-purple-50 p-1.5 rounded">
+                <Users className="h-3 w-3 mr-1" />
                 <span>{event.attendee_count} registered • {event.checked_in_count} checked in</span>
               </div>
             </div>
 
-            {/* QR Code Display */}
-            {event.registration_qr && (
-              <div className="border-t border-gray-200 pt-4 mb-4">
-                <div className="text-center">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Registration QR Code</h4>
-                  <img 
-                    src={getStorageUrl(event.registration_qr)} 
-                    alt="Registration QR Code" 
-                    className="w-32 h-32 border-2 border-blue-200 rounded-xl shadow-sm mx-auto"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex justify-between items-center">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => navigator.clipboard.writeText(getRegistrationUrl(event.id))}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-all duration-300"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Copy Link
-                  </button>
-                  {event.registration_qr && (
+            {/* QR Code and Details Layout */}
+            <div className="border-t border-gray-200 pt-3 mb-3">
+              <div className="flex items-start space-x-3">
+                {/* QR Code on the left */}
+                {event.registration_qr && (
+                  <div className="flex-shrink-0">
+                    <h4 className="text-xs font-semibold text-gray-700 mb-2">Registration QR</h4>
+                    <img 
+                      src={getStorageUrl(event.registration_qr)} 
+                      alt="Registration QR Code" 
+                      className="w-24 h-24 border border-blue-200 rounded shadow-sm"
+                    />
+                  </div>
+                )}
+                
+                {/* Details on the right */}
+                <div className="flex-1 space-y-2">
+                  <div className="flex space-x-2">
                     <button
-                      onClick={() => downloadQRCode(event)}
-                      className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-all duration-300"
+                      onClick={() => navigator.clipboard.writeText(getRegistrationUrl(event.id))}
+                      className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex items-center bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-all duration-300"
                     >
-                      <QrCode className="h-4 w-4 mr-1" />
-                      Download QR
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      Copy Link
                     </button>
-                  )}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                    Mode: {event.mode || 'online'}
-                  </span>
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                    Max: {event.max_attendees}
-                  </span>
+                    {event.registration_qr && (
+                      <button
+                        onClick={() => downloadQRCode(event)}
+                        className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex items-center bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-all duration-300"
+                      >
+                        <QrCode className="h-3 w-3 mr-1" />
+                        Download QR
+                      </button>
+                    )}
+                    <button
+                      onClick={() => generateNewQRCode(event)}
+                      className="text-green-600 hover:text-green-700 text-xs font-semibold flex items-center bg-green-50 px-2 py-1 rounded hover:bg-green-100 transition-all duration-300"
+                      title="Generate/Refresh QR Code"
+                    >
+                      <QrCode className="h-3 w-3 mr-1" />
+                      {event.registration_qr ? 'Refresh QR' : 'Generate QR'}
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      Mode: {event.mode || 'online'}
+                    </span>
+                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                      Max: {event.max_attendees}
+                    </span>
+                    {event.max_gallery_uploads && (
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                        Gallery: {event.max_gallery_uploads}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               
               {/* Action Buttons */}
-              <div className="flex justify-end space-x-2 mt-3 pt-3 border-t border-gray-100">
+              <div className="flex justify-end space-x-2 mt-3 pt-2 border-t border-gray-100">
                 <button
                   onClick={() => openEditModal(event)}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-semibold flex items-center bg-blue-50 px-3 py-2 rounded-lg hover:bg-blue-100 transition-all duration-300"
+                  className="text-blue-600 hover:text-blue-700 text-xs font-semibold flex items-center bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-all duration-300"
                 >
-                  <Edit className="h-4 w-4 mr-1" />
+                  <Edit className="h-3 w-3 mr-1" />
                   Edit
                 </button>
                 <button
                   onClick={() => deleteEvent(event.id)}
-                  className="text-red-600 hover:text-red-700 text-sm font-semibold flex items-center bg-red-50 px-3 py-2 rounded-lg hover:bg-red-100 transition-all duration-300"
+                  className="text-red-600 hover:text-red-700 text-xs font-semibold flex items-center bg-red-50 px-2 py-1 rounded hover:bg-red-100 transition-all duration-300"
                 >
-                  <Trash2 className="h-4 w-4 mr-1" />
+                  <Trash2 className="h-3 w-3 mr-1" />
                   Delete
                 </button>
               </div>
@@ -484,19 +582,28 @@ export default function EventManagement({ userCompany }: EventManagementProps) {
         ))}
       </div>
 
-      {events.length === 0 && (
+      {!loading && events.length === 0 && (
         <div className="text-center py-12">
           <div className="p-4 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl w-fit mx-auto mb-6">
             <Calendar className="h-16 w-16 text-gray-400" />
           </div>
           <h3 className="text-2xl font-bold text-gray-900 mb-3">No events found</h3>
-          <p className="text-gray-600 mb-6 text-lg">Create your first event to get started</p>
+          <p className="text-gray-600 mb-6 text-lg">
+            {userCompany ? 'Create your first event for your company' : 'Create your first event to get started'}
+          </p>
           <button
             onClick={() => setShowModal(true)}
             className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg font-semibold"
           >
             Add Event
           </button>
+        </div>
+      )}
+
+      {loading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading events...</p>
         </div>
       )}
 
