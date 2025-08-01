@@ -11,7 +11,6 @@ interface Event {
   max_gallery_uploads?: number
   company: {
     name: string
-    logo_url?: string
   }
 }
 
@@ -41,7 +40,7 @@ export default function GalleryUpload() {
           name,
           description,
           max_gallery_uploads,
-          company:companies(name, logo_url)
+          company:companies(name)
         `)
         .eq('id', eventId)
         .single()
@@ -193,14 +192,6 @@ export default function GalleryUpload() {
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="bg-blue-600 text-white px-4 md:px-6 py-4 md:py-6 text-center">
             <div className="flex items-center justify-center mb-3">
-              {event?.company?.logo_url && (
-                <img 
-                  src={getStorageUrl(event.company.logo_url)} 
-                  alt="Company Logo" 
-                  className="h-8 w-8 object-contain rounded mr-3"
-                  onError={(e) => e.currentTarget.style.display = 'none'}
-                />
-              )}
               <Camera className="h-8 w-8" />
             </div>
             <h1 className="text-xl md:text-2xl font-bold mb-2">Share Your Photo</h1>
