@@ -11,6 +11,7 @@ interface Event {
   max_gallery_uploads?: number
   company: {
     name: string
+    logo_url?: string
   }
 }
 
@@ -40,7 +41,7 @@ export default function GalleryUpload() {
           name,
           description,
           max_gallery_uploads,
-          company:companies(name)
+          company:companies(name, logo_url)
         `)
         .eq('id', eventId)
         .single()
@@ -187,18 +188,28 @@ export default function GalleryUpload() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-4 md:py-12 px-4">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 py-4 md:py-8 px-4">
+      <div className="max-w-xl mx-auto">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="bg-blue-600 text-white px-4 md:px-6 py-6 md:py-8 text-center">
-            <Camera className="h-12 w-12 mx-auto mb-4" />
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Share Your Photo</h1>
-            <p className="text-blue-100">{event.name}</p>
-            <p className="text-blue-200 text-sm">{event?.company?.name ?? 'No Company'}</p>
+          <div className="bg-blue-600 text-white px-4 md:px-6 py-4 md:py-6 text-center">
+            <div className="flex items-center justify-center mb-3">
+              {event?.company?.logo_url && (
+                <img 
+                  src={getStorageUrl(event.company.logo_url)} 
+                  alt="Company Logo" 
+                  className="h-8 w-8 object-contain rounded mr-3"
+                  onError={(e) => e.currentTarget.style.display = 'none'}
+                />
+              )}
+              <Camera className="h-8 w-8" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold mb-2">Share Your Photo</h1>
+            <p className="text-blue-100 text-sm">{event.name}</p>
+            <p className="text-blue-200 text-xs">{event?.company?.name ?? 'No Company'}</p>
           </div>
 
-          <div className="px-4 md:px-6 py-6 md:py-8">
-            <div className="space-y-6">
+          <div className="px-4 md:px-6 py-4 md:py-6">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Your Name (Optional)
@@ -216,13 +227,13 @@ export default function GalleryUpload() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Select Photo
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 md:p-6 text-center hover:border-blue-400 transition-colors">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 md:p-4 text-center hover:border-blue-400 transition-colors">
                   {previewUrl ? (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <img
                         src={previewUrl}
                         alt="Preview"
-                        className="max-w-full h-48 md:h-64 object-contain mx-auto rounded-lg"
+                        className="max-w-full h-32 md:h-40 object-contain mx-auto rounded"
                       />
                       <button
                         onClick={() => {
@@ -236,9 +247,9 @@ export default function GalleryUpload() {
                     </div>
                   ) : (
                     <div>
-                      <Image className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-600 mb-2">Click to select a photo</p>
-                      <p className="text-sm text-gray-500">PNG, JPG up to 10MB</p>
+                      <Image className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-600 text-sm mb-1">Click to select a photo</p>
+                      <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
                       <input
                         type="file"
                         accept="image/*"
@@ -248,7 +259,7 @@ export default function GalleryUpload() {
                       />
                       <label
                         htmlFor="photo-upload"
-                        className="mt-4 inline-block bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                        className="mt-2 inline-block bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 transition-colors cursor-pointer"
                       >
                         Select Photo
                       </label>
@@ -261,20 +272,20 @@ export default function GalleryUpload() {
                 <button
                   onClick={uploadPhoto}
                   disabled={uploading || uploadCount >= maxUploads}
-                  className="w-full bg-green-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50 text-sm md:text-base"
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center disabled:opacity-50"
                 >
-                  <Upload className="h-5 w-5 mr-2" />
+                  <Upload className="h-4 w-4 mr-2" />
                   {uploading ? 'Uploading...' : uploadCount >= maxUploads ? 'Upload Limit Reached' : 'Upload Photo'}
                 </button>
               )}
             </div>
 
-            <div className="mt-8 text-center text-sm text-gray-600">
+            <div className="mt-4 text-center text-xs text-gray-600">
               <p>• Your photo will be added to the event gallery</p>
               <p>• Photos may be displayed during the event</p>
               <p>• By uploading, you consent to public display</p>
-              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-blue-800 font-medium">
+              <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                <p className="text-blue-800 font-medium text-sm">
                   Upload Limit: {uploadCount}/{maxUploads} photos
                 </p>
                 {uploadCount >= maxUploads && (

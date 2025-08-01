@@ -112,6 +112,13 @@ export default function CheckIn() {
           check_in_time,
           event_id,
           table_assignment,
+          table_number,
+          seat_number,
+          face_photo_url,
+          company,
+          email,
+          phone,
+          created_at,
           event:events(name)
         `)
         .eq('event_id', eventId)
@@ -133,6 +140,11 @@ export default function CheckIn() {
       }
 
       // Check in the attendee
+      console.log('Updating attendee check-in:', attendee.id, {
+        checked_in: true,
+        check_in_time: new Date().toISOString()
+      })
+      
       const { error: updateError } = await supabase
         .from('attendees')
         .update({
@@ -141,12 +153,31 @@ export default function CheckIn() {
         })
         .eq('id', attendee.id)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('Error updating attendee:', updateError)
+        throw updateError
+      }
+      
+      console.log('Successfully updated attendee check-in')
+
+      // Get table position if table_number exists
+      let tableInfo = ''
+      if (attendee.table_number) {
+        tableInfo = `Table ${attendee.table_number}`
+        if (attendee.seat_number) {
+          tableInfo += ` - Seat ${attendee.seat_number}`
+        }
+      } else if (attendee.table_assignment) {
+        tableInfo = attendee.table_assignment
+      }
 
       return {
         success: true,
-        attendee,
-        message: `${attendee.name} checked in successfully!${attendee.table_assignment ? ` Your table assignment is: ${attendee.table_assignment}` : ''}`
+        attendee: {
+          ...attendee,
+          table_position: tableInfo
+        },
+        message: `${attendee.name} checked in successfully!${tableInfo ? ` Your table assignment is: ${tableInfo}` : ''}`
       }
     } catch (error: any) {
       return { success: false, message: 'Error processing check-in: ' + error.message }
@@ -196,7 +227,7 @@ export default function CheckIn() {
           {/* Event Info */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">{event.name}</h1>
-            <p className="text-gray-600 mb-4">{event.company.name}</p>
+            <p className="text-gray-600 mb-4">{event?.company?.name ?? 'No Company'}</p>
             
             <div className="space-y-2 text-sm text-gray-600">
               {event.date && (
