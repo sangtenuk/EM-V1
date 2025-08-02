@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Vote, Image, Edit, Trash2, Play, Pause, Upload, RotateCcw } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
+import { useSearchParams } from 'react-router-dom'
 
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
@@ -40,6 +41,7 @@ interface VotingAdminProps {
 }
 
 export default function VotingAdmin({ userCompany }: VotingAdminProps) {
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [votingSessions, setVotingSessions] = useState<VotingSession[]>([])
@@ -62,6 +64,14 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
   useEffect(() => {
     fetchEvents()
   }, [])
+
+  // Handle eventId from URL parameters
+  useEffect(() => {
+    const eventIdFromUrl = searchParams.get('eventId')
+    if (eventIdFromUrl && events.length > 0) {
+      setSelectedEventId(eventIdFromUrl)
+    }
+  }, [searchParams, events])
 
   useEffect(() => {
     if (selectedEventId) {

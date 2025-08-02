@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { QrCode, UserCheck, Users, CheckCircle, Camera, MapPin, X } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
 import Scanner from './Scanner'
+import { useSearchParams } from 'react-router-dom'
 
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
@@ -43,6 +44,11 @@ interface RecentCheckInAttendee {
   identification_number: string;
   staff_id: string | null;
   table_assignment?: string | null;
+  table_number?: string | null;
+  seat_number?: string | null;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
   check_in_time: string;
   event: { name: string }[];
 }
@@ -76,6 +82,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 }
 
 export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [manualId, setManualId] = useState('')
@@ -111,6 +118,14 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
   useEffect(() => {
     fetchEvents()
   }, [])
+
+  // Handle eventId from URL parameters
+  useEffect(() => {
+    const eventIdFromUrl = searchParams.get('eventId')
+    if (eventIdFromUrl && events.length > 0) {
+      setSelectedEventId(eventIdFromUrl)
+    }
+  }, [searchParams, events])
 
 
 
@@ -237,6 +252,11 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
           identification_number,
           staff_id,
           table_assignment,
+          table_number,
+          seat_number,
+          company,
+          email,
+          phone,
           check_in_time,
           event:events(name)
         `)
@@ -246,12 +266,25 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
         .limit(10)
 
       if (error) throw error
-      // Add table_assignment to the attendee type for recentCheckIns
-      // In fetchRecentCheckIns, after fetching data, map to add table_assignment if missing
-      const formattedData = (data || []).map(a => ({
-        ...a,
-        table_assignment: a.table_assignment || null
-      })) as RecentCheckInAttendee[]
+      
+      // Format data with enhanced table information
+      const formattedData = (data || []).map(a => {
+        let tableInfo = ''
+        if (a.table_number) {
+          tableInfo = `Table ${a.table_number}`
+          if (a.seat_number) {
+            tableInfo += ` - Seat ${a.seat_number}`
+          }
+        } else if (a.table_assignment) {
+          tableInfo = a.table_assignment
+        }
+        
+        return {
+          ...a,
+          table_assignment: tableInfo || null
+        }
+      }) as RecentCheckInAttendee[]
+      
       setRecentCheckIns(formattedData)
     } catch (error: any) {
       console.error('Error fetching recent check-ins:', error)
@@ -390,6 +423,11 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
             checked_in,
             event_id,
             table_assignment,
+            table_number,
+            seat_number,
+            company,
+            email,
+            phone,
             face_photo_url,
             event:events(name)
           `)
@@ -408,7 +446,6 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
           return { success: false, message: `${attendee.name} is already checked in` }
         }
 
-
         // Check in the attendee
         const { error: updateError } = await supabase
           .from('attendees')
@@ -423,26 +460,47 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
         // Fetch updated attendee for table_assignment
         const { data: updatedAttendee } = await supabase
           .from('attendees')
-          .select('id, name, identification_number, staff_id, table_assignment, event:events(name)')
+          .select('id, name, identification_number, staff_id, table_assignment, table_number, seat_number, company, event:events(name)')
           .eq('id', attendee.id)
           .single()
+        
         let seatMsg = ''
         let attendeeResult = attendee
+        
         if (updatedAttendee) {
-          seatMsg = updatedAttendee.table_assignment ? ` | Table: ${updatedAttendee.table_assignment}` : ''
-          attendeeResult = { ...attendee, ...updatedAttendee }
-          if (updatedAttendee.table_assignment) {
-            toast.success(`${attendee.name} checked in! Assigned to table ${updatedAttendee.table_assignment}`)
-          } else {
-            toast.success(`${attendee.name} checked in! No table assigned`)
+          // Build table information
+          if (updatedAttendee.table_number) {
+            seatMsg = `Table ${updatedAttendee.table_number}`
+            if (updatedAttendee.seat_number) {
+              seatMsg += ` - Seat ${updatedAttendee.seat_number}`
+            }
+          } else if (updatedAttendee.table_assignment) {
+            seatMsg = updatedAttendee.table_assignment
           }
+          
+          attendeeResult = { ...attendee, ...updatedAttendee }
+          
+          // Enhanced success message with more details
+          let successMessage = `${attendee.name} checked in successfully!`
+          if (seatMsg) {
+            successMessage += ` Assigned to ${seatMsg}`
+          }
+          if (updatedAttendee.staff_id) {
+            successMessage += ` (Staff ID: ${updatedAttendee.staff_id})`
+          }
+          if (updatedAttendee.company) {
+            successMessage += ` from ${updatedAttendee.company}`
+          }
+          
+          toast.success(successMessage)
         } else {
           toast.success(`${attendee.name} checked in! No table assigned`)
         }
+        
         return {
           success: true,
           attendee: attendeeResult,
-          message: `${attendee.name} checked in successfully!${seatMsg}`
+          message: `${attendee.name} checked in successfully!${seatMsg ? ` | Table: ${seatMsg}` : ''}`
         }
       } else {
         // Manual ID entry - search by identification_number or staff_id
@@ -455,6 +513,12 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
             staff_id,
             checked_in,
             event_id,
+            table_assignment,
+            table_number,
+            seat_number,
+            company,
+            email,
+            phone,
             event:events(name)
           `)
           .eq('event_id', selectedEventId)
@@ -483,10 +547,35 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
 
         if (updateError) throw updateError
 
+        // Build table information
+        let seatMsg = ''
+        if (attendee.table_number) {
+          seatMsg = `Table ${attendee.table_number}`
+          if (attendee.seat_number) {
+            seatMsg += ` - Seat ${attendee.seat_number}`
+          }
+        } else if (attendee.table_assignment) {
+          seatMsg = attendee.table_assignment
+        }
+
+        // Enhanced success message with more details
+        let successMessage = `${attendee.name} checked in successfully!`
+        if (seatMsg) {
+          successMessage += ` Assigned to ${seatMsg}`
+        }
+        if (attendee.staff_id) {
+          successMessage += ` (Staff ID: ${attendee.staff_id})`
+        }
+        if (attendee.company) {
+          successMessage += ` from ${attendee.company}`
+        }
+
+        toast.success(successMessage)
+
         return {
           success: true,
           attendee,
-          message: `${attendee.name} checked in successfully!`
+          message: `${attendee.name} checked in successfully!${seatMsg ? ` | Table: ${seatMsg}` : ''}`
         }
       }
     } catch (error: any) {
@@ -839,10 +928,19 @@ export default function CheckInSystem({ userCompany }: CheckInSystemProps) {
                   <div className="font-medium text-gray-900">{attendee.name}</div>
                   <div className="text-sm text-gray-600">ID: {attendee.identification_number}</div>
                   {attendee.staff_id && (
-                    <div className="text-sm text-gray-600">Staff: {attendee.staff_id}</div>
+                    <div className="text-sm text-gray-600">Staff ID: {attendee.staff_id}</div>
+                  )}
+                  {attendee.company && (
+                    <div className="text-sm text-purple-600 font-medium">{attendee.company}</div>
                   )}
                   {attendee.table_assignment && (
                     <div className="text-sm text-blue-700 font-semibold">Table: {attendee.table_assignment}</div>
+                  )}
+                  {(attendee.email || attendee.phone) && (
+                    <div className="text-xs text-gray-500">
+                      {attendee.email && <div>📧 {attendee.email}</div>}
+                      {attendee.phone && <div>📞 {attendee.phone}</div>}
+                    </div>
                   )}
                   <div className="text-xs text-gray-500">
                     {new Date(attendee.check_in_time).toLocaleTimeString()}

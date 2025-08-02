@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Monitor, Vote, Trophy, BarChart3, QrCode, RefreshCw } from 'lucide-react' 
 import { supabase, getStorageUrl } from '../../lib/supabase'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import QRCodeLib from 'qrcode'
 

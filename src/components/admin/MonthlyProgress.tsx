@@ -1,6 +1,6 @@
 /* import React, { useState, useEffect } from 'react' */
  import { useState, useEffect } from 'react' 
-import { TrendingUp, Calendar, Users, Building2, BarChart3, Download, FileText, Trophy, Award, Star } from 'lucide-react'
+import { TrendingUp, Calendar, Users, Building2, BarChart3, Download, FileText, Trophy, Award, Star, PieChart, BarChart } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -38,7 +38,16 @@ interface Winner {
   table_number?: number
 }
 
-
+interface ChartData {
+  labels: string[]
+  datasets: Array<{
+    label: string
+    data: number[]
+    backgroundColor: string[]
+    borderColor?: string[]
+    borderWidth?: number
+  }>
+}
 
 export default function MonthlyProgress() {
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
@@ -50,6 +59,7 @@ export default function MonthlyProgress() {
   const [selectedEvent, setSelectedEvent] = useState<string>('')
   const [includeAttendees, setIncludeAttendees] = useState<boolean>(true)
   const [includeWinners, setIncludeWinners] = useState<boolean>(true)
+  const [includeCharts, setIncludeCharts] = useState<boolean>(true)
 
   useEffect(() => {
     fetchMonthlyProgress()
@@ -199,23 +209,23 @@ export default function MonthlyProgress() {
     try {
       const winners: Winner[] = []
 
-      // Fetch lucky draw winners (custom prizes)
-      const { data: customPrizes, error: prizesError } = await supabase
-        .from('custom_prizes')
+      // Fetch lucky draw winners from the lucky_draw_winners table
+      const { data: luckyDrawWinners, error: luckyDrawError } = await supabase
+        .from('lucky_draw_winners')
         .select('*')
         .eq('event_id', eventId)
-        .order('position', { ascending: false })
+        .order('prize_position', { ascending: false })
 
-      if (!prizesError && customPrizes) {
-        // Note: In a real implementation, you'd need a winners table
-        // For now, we'll create placeholder winners based on prizes
-        customPrizes.forEach(prize => {
+      if (!luckyDrawError && luckyDrawWinners) {
+        luckyDrawWinners.forEach(winner => {
           winners.push({
-            id: `prize-${prize.id}`,
-            name: `Winner ${prize.position}`,
+            id: winner.id,
+            name: winner.winner_name || 'Unknown Winner',
             type: 'lucky_draw',
-            prize: prize.title,
-            position: prize.position
+            prize: winner.prize_title || 'Unknown Prize',
+            position: winner.prize_position || 1,
+            company: winner.winner_company,
+            table_number: winner.table_number
           })
         })
       }
@@ -288,72 +298,270 @@ export default function MonthlyProgress() {
     return `M ${points}`
   }
 
+  const generatePieChartData = (eventDetails: any) => {
+    const totalAttendees = eventDetails.attendees?.length || 0
+    const checkedInAttendees = eventDetails.attendees?.filter((a: any) => a.checked_in).length || 0
+    const notCheckedIn = totalAttendees - checkedInAttendees
 
-
-  const generatePremiumCSV = (eventDetails: any, winners: Winner[], attendees: any[]) => {
-    const currentDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
-    
-    let csvContent = ''
-    
-    // Header with premium styling information
-    csvContent += '🎉 EVENT MANAGEMENT SYSTEM - PREMIUM REPORT\n'
-    csvContent += '='.repeat(80) + '\n'
-    csvContent += `📅 Report Generated: ${currentDate}\n`
-    csvContent += `🎯 Event: ${eventDetails.name}\n`
-    csvContent += `📅 Event Date: ${eventDetails.date}\n`
-    csvContent += `📍 Location: ${eventDetails.location || 'N/A'}\n`
-    csvContent += `📝 Description: ${eventDetails.description || 'N/A'}\n`
-    csvContent += '='.repeat(80) + '\n\n'
-    
-    // Event Overview Section
-    csvContent += '📊 EVENT OVERVIEW\n'
-    csvContent += '-'.repeat(40) + '\n'
-    csvContent += `Total Attendees,${eventDetails.attendees?.length || 0}\n`
-    csvContent += `Checked In,${eventDetails.attendees?.filter((a: any) => a.checked_in).length || 0}\n`
-    csvContent += `Winners,${winners.length}\n`
-    csvContent += `Check-in Rate,${Math.round((eventDetails.attendees?.filter((a: any) => a.checked_in).length / (eventDetails.attendees?.length || 1)) * 100)}%\n`
-    csvContent += '\n'
-    
-    // Winners Section
-    if (winners.length > 0) {
-      csvContent += '🏆 WINNERS\n'
-      csvContent += '-'.repeat(40) + '\n'
-      csvContent += 'Position,Type,Winner Name,Prize\n'
-      winners.forEach((winner, index) => {
-        csvContent += `${winner.position || index + 1},${winner.type.toUpperCase()},${winner.name},${winner.prize || 'N/A'}\n`
-      })
-      csvContent += '\n'
+    return {
+      labels: ['Checked In', 'Not Checked In'],
+      datasets: [{
+        label: 'Attendee Status',
+        data: [checkedInAttendees, notCheckedIn],
+        backgroundColor: ['#10b981', '#ef4444'],
+        borderColor: ['#059669', '#dc2626'],
+        borderWidth: 2
+      }]
     }
-    
-    // Attendees Section
-    if (attendees.length > 0) {
-      csvContent += '👥 ATTENDEE DETAILS\n'
-      csvContent += '-'.repeat(40) + '\n'
-      csvContent += 'Name,Email,Phone,Status,Registration Date\n'
-      attendees.forEach((attendee: any) => {
-        const status = attendee.checked_in ? '✓ Checked In' : '○ Not Checked'
-        const registrationDate = new Date(attendee.created_at).toLocaleDateString()
-        csvContent += `${attendee.name || 'N/A'},${attendee.email || 'N/A'},${attendee.phone || 'N/A'},${status},${registrationDate}\n`
-      })
-      csvContent += '\n'
-    }
-    
-    // Footer
-    csvContent += '='.repeat(80) + '\n'
-    csvContent += '📋 Report Summary\n'
-    csvContent += '-'.repeat(40) + '\n'
-    csvContent += `• Total Records: ${attendees.length + winners.length}\n`
-    csvContent += `• Report Type: Premium Event Report\n`
-    csvContent += `• Generated By: Event Management System\n`
-    csvContent += `• Format: CSV (Comma Separated Values)\n`
-    csvContent += '='.repeat(80) + '\n'
-    
-    return csvContent
   }
+
+  const generateBarChartData = (eventDetails: any) => {
+    // Group check-ins by hour
+    const checkInHours: { [key: number]: number } = {}
+    
+    eventDetails.attendees?.forEach((attendee: any) => {
+      if (attendee.checked_in && attendee.check_in_time) {
+        const hour = new Date(attendee.check_in_time).getHours()
+        checkInHours[hour] = (checkInHours[hour] || 0) + 1
+      }
+    })
+
+    const labels = Array.from({ length: 24 }, (_, i) => `${i}:00`)
+    const data = Array.from({ length: 24 }, (_, i) => checkInHours[i] || 0)
+
+    return {
+      labels,
+      datasets: [{
+        label: 'Check-ins by Hour',
+        data,
+        backgroundColor: ['#3b82f6'],
+        borderColor: ['#2563eb'],
+        borderWidth: 1
+      }]
+    }
+  }
+
+  const generateChartSVG = (chartData: ChartData, chartType: 'pie' | 'bar', title: string) => {
+    const width = 400
+    const height = 300
+    const padding = 40
+
+    if (chartType === 'pie') {
+      const centerX = width / 2
+      const centerY = height / 2
+      const radius = Math.min(width, height) / 2 - padding
+
+      const total = chartData.datasets[0].data.reduce((sum, value) => sum + value, 0)
+      let currentAngle = 0
+
+      const paths = chartData.datasets[0].data.map((value, index) => {
+        const percentage = value / total
+        const angle = percentage * 2 * Math.PI
+        const x1 = centerX + radius * Math.cos(currentAngle)
+        const y1 = centerY + radius * Math.sin(currentAngle)
+        const x2 = centerX + radius * Math.cos(currentAngle + angle)
+        const y2 = centerY + radius * Math.sin(currentAngle + angle)
+
+        const largeArcFlag = angle > Math.PI ? 1 : 0
+        const path = `M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`
+
+        const textAngle = currentAngle + angle / 2
+        currentAngle += angle
+
+        return {
+          path,
+          color: chartData.datasets[0].backgroundColor[index],
+          label: chartData.labels[index],
+          value,
+          percentage: (percentage * 100).toFixed(1),
+          textAngle
+        }
+      })
+
+      return `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+          <title>${title}</title>
+          ${paths.map((slice, index) => `
+            <path d="${slice.path}" fill="${slice.color}" stroke="white" stroke-width="2"/>
+            <text x="${centerX + (radius + 20) * Math.cos(slice.textAngle)}" 
+                  y="${centerY + (radius + 20) * Math.sin(slice.textAngle)}" 
+                  text-anchor="middle" font-size="12" fill="white" font-weight="bold">
+              ${slice.label} (${slice.percentage}%)
+            </text>
+          `).join('')}
+          <text x="${centerX}" y="${centerY}" text-anchor="middle" font-size="16" font-weight="bold" fill="#374151">
+            ${title}
+          </text>
+        </svg>
+      `
+    } else if (chartType === 'bar') {
+      const barWidth = (width - 2 * padding) / chartData.labels.length
+      const maxValue = Math.max(...chartData.datasets[0].data)
+      const scale = (height - 2 * padding) / maxValue
+
+      const bars = chartData.datasets[0].data.map((value, index) => {
+        const x = padding + index * barWidth
+        const y = height - padding - value * scale
+        const barHeight = value * scale
+
+        return {
+          x,
+          y,
+          width: barWidth - 2,
+          height: barHeight,
+          value,
+          label: chartData.labels[index]
+        }
+      })
+
+      return `
+        <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+          <title>${title}</title>
+          ${bars.map(bar => `
+            <rect x="${bar.x}" y="${bar.y}" width="${bar.width}" height="${bar.height}" 
+                  fill="${chartData.datasets[0].backgroundColor}" stroke="${chartData.datasets[0].borderColor}" stroke-width="1"/>
+            <text x="${bar.x + bar.width / 2}" y="${bar.y - 5}" text-anchor="middle" font-size="10" fill="#374151">
+              ${bar.value}
+            </text>
+            <text x="${bar.x + bar.width / 2}" y="${height - 5}" text-anchor="middle" font-size="8" fill="#6b7280">
+              ${bar.label}
+            </text>
+          `).join('')}
+          <text x="${width / 2}" y="20" text-anchor="middle" font-size="16" font-weight="bold" fill="#374151">
+            ${title}
+          </text>
+        </svg>
+      `
+    }
+
+    return ''
+  }
+
+     const generateEventReportSheets = (eventDetails: any, winners: Winner[], attendees: any[]) => {
+     const currentDate = new Date().toLocaleDateString('en-US', { 
+       year: 'numeric', 
+       month: 'long', 
+       day: 'numeric' 
+     })
+     
+     let csvContent = ''
+     
+     // Sheet 1: Event Overview
+     csvContent += '🎉 EVENT MANAGEMENT SYSTEM - PREMIUM REPORT\n'
+     csvContent += '='.repeat(80) + '\n'
+     csvContent += `📅 Report Generated: ${currentDate}\n`
+     csvContent += `🎯 Event: ${eventDetails.name}\n`
+     csvContent += `📅 Event Date: ${eventDetails.date}\n`
+     csvContent += `📍 Location: ${eventDetails.location || 'N/A'}\n`
+     csvContent += `📝 Description: ${eventDetails.description || 'N/A'}\n`
+     csvContent += '='.repeat(80) + '\n\n'
+     
+     // Event Overview Section
+     csvContent += '📊 EVENT OVERVIEW\n'
+     csvContent += '-'.repeat(40) + '\n'
+     csvContent += `Total Attendees,${eventDetails.attendees?.length || 0}\n`
+     csvContent += `Checked In,${eventDetails.attendees?.filter((a: any) => a.checked_in).length || 0}\n`
+     csvContent += `Winners,${winners.length}\n`
+     csvContent += `Check-in Rate,${Math.round((eventDetails.attendees?.filter((a: any) => a.checked_in).length / (eventDetails.attendees?.length || 1)) * 100)}%\n`
+     csvContent += '\n'
+     
+     // Analytics Summary
+     if (includeCharts) {
+       csvContent += '📈 ANALYTICS SUMMARY\n'
+       csvContent += '-'.repeat(40) + '\n'
+       
+       // Check-in Status Summary
+       const totalAttendees = eventDetails.attendees?.length || 0
+       const checkedInAttendees = eventDetails.attendees?.filter((a: any) => a.checked_in).length || 0
+       const notCheckedIn = totalAttendees - checkedInAttendees
+       
+       csvContent += 'Check-in Status:\n'
+       csvContent += `  Checked In: ${checkedInAttendees} (${totalAttendees > 0 ? ((checkedInAttendees / totalAttendees) * 100).toFixed(1) : '0'}%)\n`
+       csvContent += `  Not Checked In: ${notCheckedIn} (${totalAttendees > 0 ? ((notCheckedIn / totalAttendees) * 100).toFixed(1) : '0'}%)\n`
+       
+       // Peak Check-in Hours
+       const checkInHours: { [key: number]: number } = {}
+       eventDetails.attendees?.forEach((attendee: any) => {
+         if (attendee.checked_in && attendee.check_in_time) {
+           const hour = new Date(attendee.check_in_time).getHours()
+           checkInHours[hour] = (checkInHours[hour] || 0) + 1
+         }
+       })
+       
+       const peakHours = Object.entries(checkInHours)
+         .map(([hour, count]) => ({ hour: parseInt(hour), count }))
+         .sort((a, b) => b.count - a.count)
+         .slice(0, 3)
+       
+       csvContent += '\nPeak Check-in Hours:\n'
+       peakHours.forEach(peak => {
+         csvContent += `  ${peak.hour}:00 - ${peak.count} check-ins\n`
+       })
+       csvContent += '\n'
+     }
+     
+     // Winners Section
+     if (winners.length > 0) {
+       csvContent += '🏆 WINNERS\n'
+       csvContent += '-'.repeat(40) + '\n'
+       csvContent += 'Position,Type,Winner Name,Company,Table,Prize\n'
+       winners.forEach((winner, index) => {
+         const tableInfo = winner.table_number ? `Table ${winner.table_number}` : 'N/A'
+         csvContent += `${winner.position || index + 1},${winner.type.toUpperCase()},${winner.name},${winner.company || 'N/A'},${tableInfo},${winner.prize || 'N/A'}\n`
+       })
+       csvContent += '\n'
+     }
+     
+     // Sheet 2: Attendees List
+     if (attendees.length > 0) {
+       csvContent += '\n' + '='.repeat(80) + '\n'
+       csvContent += '👥 ATTENDEE LIST\n'
+       csvContent += '='.repeat(80) + '\n'
+       csvContent += `Event: ${eventDetails.name}\n`
+       csvContent += `Report Generated: ${currentDate}\n`
+       csvContent += '='.repeat(80) + '\n\n'
+       
+       csvContent += 'Name,Email,Phone,Status,Registration Date,Check-in Time,Table Info\n'
+       attendees.forEach((attendee: any) => {
+         const status = attendee.checked_in ? '✓ Checked In' : '○ Not Checked'
+         const registrationDate = new Date(attendee.created_at).toLocaleDateString()
+         const checkInTime = attendee.check_in_time ? new Date(attendee.check_in_time).toLocaleString() : 'N/A'
+         
+         let tableInfo = 'N/A'
+         if (attendee.table_number) {
+           tableInfo = `Table ${attendee.table_number}`
+           if (attendee.seat_number) {
+             tableInfo += ` - Seat ${attendee.seat_number}`
+           }
+         } else if (attendee.table_assignment) {
+           tableInfo = attendee.table_assignment
+         }
+         
+         csvContent += `${attendee.name || 'N/A'},${attendee.email || 'N/A'},${attendee.phone || 'N/A'},${status},${registrationDate},${checkInTime},${tableInfo}\n`
+       })
+       
+       csvContent += '\n' + '='.repeat(80) + '\n'
+       csvContent += '📋 Attendee List Summary\n'
+       csvContent += '-'.repeat(40) + '\n'
+       csvContent += `• Total Attendees: ${attendees.length}\n`
+       csvContent += `• Checked In: ${attendees.filter((a: any) => a.checked_in).length}\n`
+       csvContent += `• Not Checked In: ${attendees.filter((a: any) => !a.checked_in).length}\n`
+       csvContent += '='.repeat(80) + '\n'
+     }
+     
+     // Final Footer
+     csvContent += '\n' + '='.repeat(80) + '\n'
+     csvContent += '📋 Report Summary\n'
+     csvContent += '-'.repeat(40) + '\n'
+     csvContent += `• Total Records: ${attendees.length + winners.length}\n`
+     csvContent += `• Report Type: Premium Event Report\n`
+     csvContent += `• Generated By: Event Management System\n`
+     csvContent += `• Format: Single CSV with Multiple Sections\n`
+     csvContent += `• Analytics Included: ${includeCharts ? 'Yes' : 'No'}\n`
+     csvContent += '='.repeat(80) + '\n'
+     
+     return csvContent
+   }
 
   const exportReport = async () => {
     try {
@@ -424,18 +632,40 @@ export default function MonthlyProgress() {
               name,
               date,
               description,
-              location,
-              attendees(
-                id,
-                name,
-                email,
-                phone,
-                checked_in,
-                created_at
-              )
+              location
             `)
             .eq('id', selectedEvent)
             .single()
+
+          if (eventError) {
+            toast.error('Error fetching event details')
+            return
+          }
+
+          // Fetch attendees separately to avoid nested query issues
+          const { data: attendees, error: attendeesError } = await supabase
+            .from('attendees')
+            .select(`
+              id,
+              name,
+              email,
+              phone,
+              checked_in,
+              created_at,
+              check_in_time
+            `)
+            .eq('event_id', selectedEvent)
+
+          if (attendeesError) {
+            toast.error('Error fetching attendees')
+            return
+          }
+
+          // Combine event details with attendees
+          const eventWithAttendees = {
+            ...eventDetails,
+            attendees: attendees || []
+          }
 
           if (eventError) {
             toast.error('Error fetching event details')
@@ -448,19 +678,19 @@ export default function MonthlyProgress() {
             winners = await fetchEventWinners(selectedEvent)
           }
 
-          // Generate premium CSV report
-          const eventCsvContent = generatePremiumCSV(eventDetails, winners, includeAttendees ? eventDetails.attendees || [] : [])
-          
-          // Create and download CSV file
-          const blob = new Blob([eventCsvContent], { type: 'text/csv;charset=utf-8;' })
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `event-report-${eventDetails.name.replace(/[^a-zA-Z0-9]/g, '-')}.csv`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          URL.revokeObjectURL(url)
+                     // Generate single CSV report with multiple sections
+           const eventCsvContent = generateEventReportSheets(eventWithAttendees, winners, includeAttendees ? eventWithAttendees.attendees || [] : [])
+           
+           // Create and download single CSV file
+           const blob = new Blob([eventCsvContent], { type: 'text/csv;charset=utf-8;' })
+           const url = URL.createObjectURL(blob)
+           const a = document.createElement('a')
+           a.href = url
+           a.download = `event-report-${eventDetails.name.replace(/[^a-zA-Z0-9]/g, '-')}.csv`
+           document.body.appendChild(a)
+           a.click()
+           document.body.removeChild(a)
+           URL.revokeObjectURL(url)
 
           toast.success('Premium CSV report exported successfully!')
           return
@@ -554,13 +784,13 @@ export default function MonthlyProgress() {
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="includeWinners"
-                    checked={includeWinners}
-                    onChange={(e) => setIncludeWinners(e.target.checked)}
+                    id="includeCharts"
+                    checked={includeCharts}
+                    onChange={(e) => setIncludeCharts(e.target.checked)}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
-                  <label htmlFor="includeWinners" className="text-sm text-gray-700">
-                    Include Winners
+                  <label htmlFor="includeCharts" className="text-sm text-gray-700">
+                    Include Charts
                   </label>
                 </div>
               </>
@@ -619,6 +849,8 @@ export default function MonthlyProgress() {
           </div>
         </div>
       </div>
+
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Chart */}

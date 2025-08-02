@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Users, Plus, Edit, Trash2, Search, Download, Upload, QrCode } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useHybridDB } from '../../lib/hybridDB'
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
+import { useSearchParams } from 'react-router-dom'
 
 interface Event {
   id: string
@@ -34,6 +36,8 @@ interface AttendeeManagementProps {
 }
 
 export default function AttendeeManagement({ userCompany }: AttendeeManagementProps) {
+  const { getEvents: getEventsHybrid, getAttendees: getAttendeesHybrid, createAttendee: createAttendeeHybrid, updateAttendee: updateAttendeeHybrid, deleteAttendee: deleteAttendeeHybrid } = useHybridDB();
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -56,6 +60,14 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
     fetchEvents()
   }, [])
 
+  // Handle eventId from URL parameters
+  useEffect(() => {
+    const eventIdFromUrl = searchParams.get('eventId')
+    if (eventIdFromUrl && events.length > 0) {
+      setSelectedEventId(eventIdFromUrl)
+    }
+  }, [searchParams, events])
+
   useEffect(() => {
     if (selectedEventId) {
       fetchAttendees()
@@ -65,24 +77,11 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
   const fetchEvents = async () => {
     try {
       setLoading(true)
-      let query = supabase.from('events').select(`
-          id,
-          name,
-          company_id,
-          company:companies(name)
-        `)
-
-      if (userCompany) {
-        query = query.eq('company_id', userCompany.company_id)
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false })
-
-      if (error) throw error
+      const events = await getEventsHybrid(userCompany?.company_id)
       
-      const transformedData = data?.map(event => ({
+      const transformedData = events?.map(event => ({
         ...event,
-        company: Array.isArray(event.company) ? event.company[0] : event.company
+        company: { name: 'Company' } // Will be populated from companies
       })) || []
       
       setEvents(transformedData)
@@ -100,14 +99,8 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
   const fetchAttendees = async () => {
     try {
       setAttendeeLoading(true)
-      const { data, error } = await supabase
-        .from('attendees')
-        .select('*')
-        .eq('event_id', selectedEventId)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setAttendees(data || [])
+      const attendees = await getAttendeesHybrid(selectedEventId)
+      setAttendees(attendees || [])
     } catch (error: any) {
       toast.error('Error fetching attendees: ' + error.message)
     } finally {
@@ -164,34 +157,25 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
       }
 
       if (editingAttendee) {
-        // Update attendee
-        const { error } = await supabase
-          .from('attendees')
-          .update({
-            name: attendeeForm.name,
-            email: attendeeForm.email || null,
-            phone: attendeeForm.phone || null,
-            identification_number: attendeeForm.identification_number,
-            staff_id: attendeeForm.staff_id || null,
-            table_type: attendeeForm.table_type
-          })
-          .eq('id', editingAttendee.id)
-
-        if (error) throw error
+        // Update attendee using hybrid database
+        await updateAttendeeHybrid(editingAttendee.id, {
+          name: attendeeForm.name,
+          email: attendeeForm.email || null,
+          phone: attendeeForm.phone || null,
+          identification_number: attendeeForm.identification_number,
+          staff_id: attendeeForm.staff_id || null,
+          table_type: attendeeForm.table_type
+        })
         toast.success('Attendee updated successfully!')
       } else {
-        // Create new attendee
-        const { error } = await supabase
-          .from('attendees')
-          .insert([{
-            ...attendeeForm,
-            event_id: selectedEventId,
-            checked_in: false,
-            check_in_time: null,
-            table_type: attendeeForm.table_type
-          }])
-
-        if (error) throw error
+        // Create new attendee using hybrid database
+        await createAttendeeHybrid({
+          ...attendeeForm,
+          event_id: selectedEventId,
+          checked_in: false,
+          check_in_time: null,
+          table_type: attendeeForm.table_type
+        })
         toast.success('Attendee created successfully!')
       }
 
@@ -206,12 +190,7 @@ export default function AttendeeManagement({ userCompany }: AttendeeManagementPr
     if (!confirm('Are you sure you want to delete this attendee?')) return
 
     try {
-      const { error } = await supabase
-        .from('attendees')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
+      await deleteAttendeeHybrid(id)
       toast.success('Attendee deleted successfully!')
       fetchAttendees()
     } catch (error: any) {

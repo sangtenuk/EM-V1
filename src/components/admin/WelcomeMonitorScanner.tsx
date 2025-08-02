@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Monitor, Users, Settings, Maximize, Clock, Building, MapPin, User, Calendar, RefreshCw, Hash } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Monitor, Users, Settings, Maximize, Clock, Building, MapPin, User, Calendar, RefreshCw, Hash, Camera, X, RotateCw, CheckCircle } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
+import jsQR from 'jsqr'
+import Scanner from './Scanner';
 
 interface Event {
   id: string
@@ -28,11 +31,11 @@ interface LatestCheckIn {
   registration_date?: string | null
 }
 
-interface WelcomeMonitorProps {
+interface WelcomeMonitorScannerProps {
   userCompany?: any
 }
 
-export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
+export default function WelcomeMonitorScanner({ userCompany }: WelcomeMonitorScannerProps) {
   const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
@@ -40,6 +43,12 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
   const [latestCheckIn, setLatestCheckIn] = useState<LatestCheckIn | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [checkInHistory, setCheckInHistory] = useState<LatestCheckIn[]>([])
+  
+  // Scanner states
+  const [error, setError] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false)
+  const [welcomeTimeout, setWelcomeTimeout] = useState<NodeJS.Timeout | null>(null)
+
   const [settings, setSettings] = useState({
     showCompany: true,
     showTime: true,
@@ -54,7 +63,8 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
     textColor: '#ffffff',
     showHistory: false,
     maxHistoryItems: 5,
-    useCustomBackground: true
+    useCustomBackground: true,
+    welcomeDisplayTime: 5000
   })
 
   useEffect(() => {
@@ -71,141 +81,366 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
 
   useEffect(() => {
     if (selectedEventId) {
-      // Set up real-time subscription for new check-ins - same approach as VotingMonitor
-      const subscription = supabase
-        .channel(`check-ins-${selectedEventId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'attendees'
-          },
-          (payload) => {
-            // Force immediate update with smooth transition
-            setTimeout(() => {
-              checkForNewCheckIns()
-            }, 100)
-          }
-        )
-        .subscribe()
+      // startCamera() // This is now handled by Scanner
+    } else {
+      // stopCamera() // This is now handled by Scanner
+    }
+  }, [selectedEventId])
 
-      // Initial fetch
-      checkForNewCheckIns()
-
-      return () => {
-        subscription.unsubscribe()
+  // Cleanup effect to prevent video play errors on unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup function to stop camera when component unmounts
+      // if (stream) { // stream is no longer managed here
+      //   stream.getTracks().forEach((track: MediaStreamTrack) => track.stop())
+      // }
+      if (welcomeTimeout) {
+        clearTimeout(welcomeTimeout)
       }
     }
-  }, [selectedEventId])
+  }, [welcomeTimeout])
 
-  // Periodic refresh as fallback (every 10 seconds) - same as VotingMonitor
-  useEffect(() => {
-    if (selectedEventId) {
-      const interval = setInterval(() => {
-        checkForNewCheckIns()
-      }, 10000) // 10 seconds
+  // Camera functions
+  // startCamera = async () => { // This is now handled by Scanner
+  //   if (isActive) return;
+  //   setIsLoading(true);
+  //   setError(null);
 
-      return () => clearInterval(interval)
-    }
-  }, [selectedEventId])
+  //   try {
+  //     const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+  //     setStream(mediaStream);
 
-  // Fixed auto-hide timer that doesn't interfere with new check-ins
-  useEffect(() => {
-    if (latestCheckIn && settings.autoHide) {
-      const timer = setTimeout(() => {
-        // Only hide if no new check-ins have been detected recently
-        const checkInTime = new Date(latestCheckIn.check_in_time)
-        const now = new Date()
-        const timeDiff = (now.getTime() - checkInTime.getTime()) / 1000
-        
-        if (timeDiff > 30) { // Only auto-hide if check-in is older than 30 seconds
-          setLatestCheckIn(null)
-        }
-      }, settings.hideDelay)
+  //     if (videoRef.current) {
+  //       videoRef.current.srcObject = mediaStream;
+  //       videoRef.current.onloadedmetadata = () => {
+  //         videoRef.current?.play().then(() => {
+  //           setIsActive(true);
+  //           setIsLoading(false);
+  //           setTimeout(() => {
+  //             if (videoRef.current && !videoRef.current.paused && document.contains(videoRef.current)) {
+  //               startQRScanning();
+  //             }
+  //           }, 1000);
+  //         }).catch((err) => {
+  //           setIsLoading(false);
+  //           setError('Failed to start video playback');
+  //         });
+  //       };
+  //     } else {
+  //       setIsLoading(false);
+  //       setError('Video element not found');
+  //     }
+  //   } catch (err: any) {
+  //     setIsLoading(false);
+  //     let errorMessage = "Camera access failed";
+  //     if (err.name === 'NotAllowedError') {
+  //       errorMessage = "Camera permission denied. Please allow camera access in your browser settings.";
+  //     } else if (err.name === 'NotFoundError') {
+  //       errorMessage = "No camera found on this device.";
+  //     } else if (err.name === 'NotSupportedError') {
+  //       errorMessage = "Camera not supported on this device.";
+  //     } else if (err.name === 'NotReadableError') {
+  //       errorMessage = "Camera is in use by another application.";
+  //     } else if (err.message?.includes('HTTPS')) {
+  //       errorMessage = "Camera access requires HTTPS. Please use a secure connection.";
+  //     } else if (err.message) {
+  //       errorMessage = err.message;
+  //     }
+  //     setError(errorMessage);
+  //     toast.error(errorMessage);
+  //   }
+  // };
 
-      return () => clearTimeout(timer)
-    }
-  }, [latestCheckIn, settings.autoHide, settings.hideDelay])
+  // const stopCamera = () => { // This is now handled by Scanner
+  //   if (stream) {
+  //     stream.getTracks().forEach((track: MediaStreamTrack) => track.stop())
+  //     setStream(null)
+  //   }
+  //   setIsActive(false)
+  //   setError(null)
+  //   setIsScanning(false)
+  //   setAutoScanning(false)
+  //   if (animationFrameRef.current) {
+  //     cancelAnimationFrame(animationFrameRef.current)
+  //   }
+  // }
 
-  const checkForNewCheckIns = async () => {
+  // const refreshCamera = () => { // This is now handled by Scanner
+  //   stopCamera()
+  //   setTimeout(() => startCamera(), 100)
+  // }
+
+  // const startQRScanning = () => { // This is now handled by Scanner
+  //   if (!videoRef.current || !canvasRef.current) return
+
+  //   let frameCount = 0
+  //   let scanningActive = true
+
+  //   const scanFrame = () => {
+  //     const currentIsActive = videoRef.current && !videoRef.current.paused && videoRef.current.readyState >= 2
+      
+  //     if (!videoRef.current || !canvasRef.current || !currentIsActive || !scanningActive) {
+  //       return
+  //     }
+
+  //     if (videoRef.current.paused || videoRef.current.readyState < 2) {
+  //       animationFrameRef.current = requestAnimationFrame(scanFrame)
+  //       return
+  //     }
+
+  //     frameCount++
+  //     setFrameCount(frameCount)
+  //     if (frameCount % 15 !== 0) {
+  //       animationFrameRef.current = requestAnimationFrame(scanFrame)
+  //       return
+  //     }
+
+  //     try {
+  //       const video = videoRef.current
+  //       const canvas = canvasRef.current
+  //       const context = canvas.getContext('2d')
+
+  //       if (context && video.videoWidth > 0 && video.videoHeight > 0) {
+  //         canvas.width = video.videoWidth
+  //         canvas.height = video.videoHeight
+  //         context.drawImage(video, 0, 0, canvas.width, canvas.height)
+          
+  //         const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
+          
+  //         const code = jsQR(imageData.data, imageData.width, imageData.height, {
+  //           inversionAttempts: "attemptBoth",
+  //         })
+
+  //         if (code) {
+  //           scanningActive = false
+  //           handleQRDetected(code.data)
+  //           return
+  //         }
+  //       }
+  //     } catch (error) {
+  //       console.error('Error during auto-scanning:', error)
+  //     }
+
+  //     animationFrameRef.current = requestAnimationFrame(scanFrame)
+  //   }
+
+  //   setAutoScanning(true)
+  //   animationFrameRef.current = requestAnimationFrame(scanFrame)
+  // }
+
+  // const handleQRDetected = async (qrData: string) => { // This is now handled by Scanner
+  //   setIsScanning(true)
+  //   toast.success("QR Code detected!")
+    
+  //   // Process the QR code and check in attendee
+  //   const result = await processCheckIn(qrData)
+    
+  //   if (result.success && result.attendee) {
+  //     setLatestCheckIn(result.attendee)
+  //     setShowWelcome(true)
+      
+  //     // Add to history
+  //     setCheckInHistory(prev => {
+  //       const newHistory = [result.attendee!, ...prev.slice(0, settings.maxHistoryItems - 1)]
+  //       return newHistory
+  //     })
+      
+  //     // Stop scanning and show welcome message
+  //     if (animationFrameRef.current) {
+  //       cancelAnimationFrame(animationFrameRef.current)
+  //     }
+      
+  //     // Auto-hide welcome message and return to scanner
+  //     const timeout = setTimeout(() => {
+  //       setShowWelcome(false)
+  //       setLatestCheckIn(null)
+  //       setTimeout(() => {
+  //         refreshCamera()
+  //       }, 500)
+  //     }, settings.welcomeDisplayTime)
+      
+  //     setWelcomeTimeout(timeout)
+  //   } else {
+  //     toast.error(result.message)
+  //     setTimeout(() => {
+  //       setIsScanning(false)
+  //       refreshCamera()
+  //     }, 2000)
+  //   }
+  // }
+
+  const processCheckIn = async (qrData: string): Promise<{ success: boolean; attendee?: LatestCheckIn; message: string }> => {
     try {
-      // Fetch recent check-ins from the database
-      const { data: recentCheckIns, error } = await supabase
-        .from('attendees')
-        .select(`
-          id,
-          name,
-          company,
-          email,
-          phone,
-          table_number,
-          seat_number,
-          table_assignment,
-          staff_id,
-          identification_number,
-          face_photo_url,
-          check_in_time,
-          created_at
-        `)
-        .eq('event_id', selectedEventId)
-        .eq('checked_in', true)
-        .not('check_in_time', 'is', null)
-        .order('check_in_time', { ascending: false })
-        .limit(10)
+      // Check if it's a QR code (contains |) or manual ID entry
+      if (qrData.includes('|')) {
+        // Parse QR code data (format: attendeeId|eventId|name)
+        const parts = qrData.split('|')
+        if (parts.length !== 3) {
+          return { success: false, message: 'Invalid QR code format' }
+        }
 
-      if (error) {
-        console.error('Error fetching recent check-ins:', error)
-        return
-      }
+        const attendeeId = parts[0]
 
-      if (recentCheckIns && recentCheckIns.length > 0) {
-        // Get the most recent check-in
-        const latestCheckIn = recentCheckIns[0]
-        
-        // Check if this is a new check-in (within last 30 seconds)
-        const checkInTime = new Date(latestCheckIn.check_in_time)
-        const now = new Date()
-        const timeDiff = (now.getTime() - checkInTime.getTime()) / 1000 // seconds
-        
-        if (timeDiff < 30) { // Only show if check-in was within last 30 seconds
-          // Get table position if table_number exists
-          let tablePosition = ''
-          if (latestCheckIn.table_number) {
-            tablePosition = `Table ${latestCheckIn.table_number}`
-            if (latestCheckIn.seat_number) {
-              tablePosition += ` - Seat ${latestCheckIn.seat_number}`
-            }
-          } else if (latestCheckIn.table_assignment) {
-            tablePosition = latestCheckIn.table_assignment
-          }
-          
-          const checkInData = {
-            id: latestCheckIn.id,
-            name: latestCheckIn.name,
-            company: latestCheckIn.company,
-            check_in_time: latestCheckIn.check_in_time,
-            face_photo_url: latestCheckIn.face_photo_url,
-            table_number: latestCheckIn.table_number,
-            table_position: tablePosition,
-            staff_id: latestCheckIn.staff_id,
-            identification_number: latestCheckIn.identification_number,
-            email: latestCheckIn.email,
-            phone: latestCheckIn.phone,
-            registration_date: latestCheckIn.created_at
-          }
-          
-          setLatestCheckIn(checkInData)
-          
-          // Add to history
-          setCheckInHistory(prev => {
-            const newHistory = [checkInData, ...prev.slice(0, settings.maxHistoryItems - 1)]
-            return newHistory
+        // Verify attendee exists and belongs to selected event
+        const { data: attendee, error } = await supabase
+          .from('attendees')
+          .select(`
+            id,
+            name,
+            identification_number,
+            staff_id,
+            checked_in,
+            event_id,
+            table_assignment,
+            table_number,
+            seat_number,
+            company,
+            email,
+            phone,
+            check_in_time,
+            created_at,
+            face_photo_url,
+            event:events(name)
+          `)
+          .eq('id', attendeeId)
+          .single()
+
+        if (error || !attendee) {
+          return { success: false, message: 'Attendee not found' }
+        }
+
+        if (attendee.event_id !== selectedEventId) {
+          return { success: false, message: 'This ticket is not valid for the selected event' }
+        }
+
+        if (attendee.checked_in) {
+          return { success: false, message: `${attendee.name} is already checked in` }
+        }
+
+        // Check in the attendee
+        const { error: updateError } = await supabase
+          .from('attendees')
+          .update({
+            checked_in: true,
+            check_in_time: new Date().toISOString()
           })
+          .eq('id', attendee.id)
+
+        if (updateError) throw updateError
+
+        // Get table position if table_number exists
+        let tablePosition = ''
+        if (attendee.table_number) {
+          tablePosition = `Table ${attendee.table_number}`
+          if (attendee.seat_number) {
+            tablePosition += ` - Seat ${attendee.seat_number}`
+          }
+        } else if (attendee.table_assignment) {
+          tablePosition = attendee.table_assignment
+        }
+
+        const checkInData: LatestCheckIn = {
+          id: attendee.id,
+          name: attendee.name,
+          company: attendee.company,
+          check_in_time: new Date().toISOString(),
+          face_photo_url: (attendee as any).face_photo_url || null,
+          table_number: attendee.table_number,
+          table_position: tablePosition,
+          staff_id: attendee.staff_id,
+          identification_number: attendee.identification_number,
+          email: attendee.email,
+          phone: attendee.phone,
+          registration_date: attendee.created_at
+        }
+
+        return {
+          success: true,
+          attendee: checkInData,
+          message: `${attendee.name} checked in successfully!`
+        }
+      } else {
+        // Manual ID entry - search by identification_number or staff_id
+        const { data: attendees, error } = await supabase
+          .from('attendees')
+          .select(`
+            id,
+            name,
+            identification_number,
+            staff_id,
+            checked_in,
+            event_id,
+            table_assignment,
+            table_number,
+            seat_number,
+            company,
+            email,
+            phone,
+            check_in_time,
+            created_at,
+            face_photo_url,
+            event:events(name)
+          `)
+          .eq('event_id', selectedEventId)
+          .or(`identification_number.eq.${qrData},staff_id.eq.${qrData}`)
+
+        if (error) throw error
+
+        if (!attendees || attendees.length === 0) {
+          return { success: false, message: 'No attendee found with this ID' }
+        }
+
+        const attendee = attendees[0]
+
+        if (attendee.checked_in) {
+          return { success: false, message: `${attendee.name} is already checked in` }
+        }
+
+        // Check in the attendee
+        const { error: updateError } = await supabase
+          .from('attendees')
+          .update({
+            checked_in: true,
+            check_in_time: new Date().toISOString()
+          })
+          .eq('id', attendee.id)
+
+        if (updateError) throw updateError
+
+        // Get table position if table_number exists
+        let tablePosition = ''
+        if (attendee.table_number) {
+          tablePosition = `Table ${attendee.table_number}`
+          if (attendee.seat_number) {
+            tablePosition += ` - Seat ${attendee.seat_number}`
+          }
+        } else if (attendee.table_assignment) {
+          tablePosition = attendee.table_assignment
+        }
+
+        const checkInData: LatestCheckIn = {
+          id: attendee.id,
+          name: attendee.name,
+          company: attendee.company,
+          check_in_time: new Date().toISOString(),
+          face_photo_url: (attendee as any).face_photo_url || null,
+          table_number: attendee.table_number,
+          table_position: tablePosition,
+          staff_id: attendee.staff_id,
+          identification_number: attendee.identification_number,
+          email: attendee.email,
+          phone: attendee.phone,
+          registration_date: attendee.created_at
+        }
+
+        return {
+          success: true,
+          attendee: checkInData,
+          message: `${attendee.name} checked in successfully!`
         }
       }
-    } catch (error) {
-      console.error('Error checking for new check-ins:', error)
+    } catch (error: any) {
+      return { success: false, message: 'Error processing check-in: ' + error.message }
     }
   }
 
@@ -222,7 +457,6 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
         `)
         .order('created_at', { ascending: false })
 
-      // Filter by company if user is a company user
       if (userCompany) {
         query = query.eq('company_id', userCompany.company_id)
       }
@@ -238,7 +472,6 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
         }))
         setEvents(normalizedData)
 
-        // Auto-select first event for company users
         if (userCompany && normalizedData && normalizedData.length > 0) {
           setSelectedEventId(normalizedData[0].id)
           setSelectedEvent(normalizedData[0])
@@ -274,8 +507,7 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
     })
   }
 
-  const MonitorDisplay = () => {
-    // Determine background style
+  const WelcomeDisplay = () => {
     const backgroundStyle = settings.useCustomBackground && selectedEvent?.custom_background
       ? {
           backgroundImage: `url(${getStorageUrl(selectedEvent.custom_background)})`,
@@ -448,10 +680,82 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
     )
   }
 
+  const ScannerDisplay = () => {
+    if (showWelcome) {
+      return <WelcomeDisplay />;
+    }
+      return (
+      <Scanner
+        onScan={async (qrData) => {
+          const result = await processCheckIn(qrData);
+          if (result.success && result.attendee) {
+            setLatestCheckIn(result.attendee);
+            setShowWelcome(true);
+            setCheckInHistory(prev => [result.attendee!, ...prev.slice(0, settings.maxHistoryItems - 1)]);
+            setTimeout(() => {
+              setShowWelcome(false);
+              setLatestCheckIn(null);
+            }, settings.welcomeDisplayTime);
+          } else {
+            toast.error(result.message);
+          }
+        }}
+        onError={setError}
+        eventSelected={!!selectedEventId}
+      />
+    );
+  };
+
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50">
-        <MonitorDisplay />
+      <div className="fixed inset-0 z-50 bg-black">
+        {/* Event Details Header */}
+        {selectedEvent && (
+          <div
+            className="w-full flex flex-col items-center justify-center"
+            style={selectedEvent.custom_background && settings.useCustomBackground ? {
+              backgroundImage: `url(${getStorageUrl(selectedEvent.custom_background)})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              color: settings.textColor,
+            } : { backgroundColor: settings.backgroundColor, color: settings.textColor }}
+          >
+            <h1 className="text-4xl md:text-6xl font-bold mb-2 drop-shadow-lg">{selectedEvent.name}</h1>
+            {selectedEvent.company?.name && (
+              <div className="text-2xl md:text-3xl font-medium opacity-90 mb-2 drop-shadow-lg flex items-center justify-center">
+                <Building className="h-7 w-7 mr-2" />
+                {selectedEvent.company.name}
+              </div>
+            )}
+          </div>
+        )}
+        {/* Scanner fills the rest of the screen */}
+        <div className="flex-1 flex flex-col justify-center items-center w-full h-full ">
+          {showWelcome ? <WelcomeDisplay /> :
+            <div className="w-screen h-screen flex flex-col justify-center items-center pb-20">
+                
+              <Scanner
+                onScan={async (qrData) => {
+                  const result = await processCheckIn(qrData);
+                  if (result.success && result.attendee) {
+                    setLatestCheckIn(result.attendee);
+                    setShowWelcome(true);
+                    setCheckInHistory(prev => [result.attendee!, ...prev.slice(0, settings.maxHistoryItems - 1)]);
+                    setTimeout(() => {
+                      setShowWelcome(false);
+                      setLatestCheckIn(null);
+                    }, settings.welcomeDisplayTime);
+                  } else {
+                    toast.error(result.message);
+                  }
+                }}
+                onError={setError}
+                eventSelected={!!selectedEventId}
+              />
+              </div>
+          }
+        </div>
         <button onClick={toggleFullscreen} className="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-2 rounded-lg hover:bg-opacity-70 transition-colors">
           Exit Fullscreen
         </button>
@@ -463,18 +767,10 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
     <div>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Welcome Monitor</h1>
-          <p className="text-gray-600 mt-2">Display latest check-ins on external monitor with detailed attendee information</p>
+          <h1 className="text-3xl font-bold text-gray-900">Welcome Monitor Scanner</h1>
+          <p className="text-gray-600 mt-2">Camera scanner with welcome display - scan QR codes to welcome attendees</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => checkForNewCheckIns()}
-            disabled={!selectedEventId}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className="h-5 w-5 mr-2" />
-            Refresh Check-ins
-          </button>
           <button
             onClick={toggleFullscreen}
             disabled={!selectedEventId}
@@ -557,24 +853,7 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
                 <input type="checkbox" checked={settings.useCustomBackground} onChange={(e) => setSettings({ ...settings, useCustomBackground: e.target.checked })} className="mr-2" />
                 <span className="text-sm">Use Custom Background</span>
               </label>
-              <label className="flex items-center">
-                <input type="checkbox" checked={settings.autoHide} onChange={(e) => setSettings({ ...settings, autoHide: e.target.checked })} className="mr-2" />
-                <span className="text-sm">Auto Hide</span>
-              </label>
             </div>
-            {settings.autoHide && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Hide Delay (seconds)</label>
-                <input
-                  type="number"
-                  value={settings.hideDelay / 1000}
-                  onChange={(e) => setSettings({ ...settings, hideDelay: parseInt(e.target.value) * 1000 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="1"
-                  max="30"
-                />
-              </div>
-            )}
             {settings.showHistory && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Max History Items</label>
@@ -588,6 +867,17 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
                 />
               </div>
             )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Welcome Display Time (seconds)</label>
+              <input
+                type="number"
+                value={settings.welcomeDisplayTime / 1000}
+                onChange={(e) => setSettings({ ...settings, welcomeDisplayTime: parseInt(e.target.value) * 1000 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min="1"
+                max="30"
+              />
+            </div>
             {!settings.useCustomBackground && (
               <>
                 <div>
@@ -609,9 +899,10 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
               <Monitor className="h-6 w-6 mr-2" />
               Preview
             </h2>
+            {/* In preview mode, keep the aspect-video constraint for the preview only */}
             <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
               {selectedEventId ? (
-                <MonitorDisplay />
+                showWelcome ? <WelcomeDisplay /> : <ScannerDisplay />
               ) : (
                 <div className="h-full flex items-center justify-center text-gray-500">
                   <div className="text-center">
@@ -622,10 +913,11 @@ export default function WelcomeMonitor({ userCompany }: WelcomeMonitorProps) {
               )}
             </div>
             <div className="mt-4 text-sm text-gray-600">
-              <p>• This preview shows how the welcome screen will appear</p>
+              <p>• This preview shows the scanner and welcome display</p>
               <p>• Click "Fullscreen" to display on external monitor</p>
-              <p>• New check-ins will automatically appear in real-time</p>
-              <p>• Shows detailed attendee information including photo, company, staff ID, and table assignment</p>
+              <p>• Camera scanner will automatically detect QR codes</p>
+              <p>• Welcome message shows after successful check-in</p>
+              <p>• Scanner returns automatically after welcome display</p>
               {selectedEvent?.custom_background && (
                 <p>• Custom background available for this event</p>
               )}

@@ -359,7 +359,7 @@ export default function Scanner({ onScan, onError, autoStart = true, eventSelect
           autoPlay 
           playsInline 
           muted 
-          className="w-full h-80 md:h-80 object-cover"
+          className="w-full h-full object-cover"
           style={{
             objectFit: 'cover',
             objectPosition: 'center',
@@ -489,7 +489,7 @@ export default function Scanner({ onScan, onError, autoStart = true, eventSelect
       {isActive && (
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
           <div className="flex items-center justify-between text-sm text-gray-600">
-            <span>📱 Fixed frame size: 640x480</span>
+            <span>📱 powered by <i>Event Management System</i></span>
             <span>🔍 Real-time QR detection</span>
           </div>
         </div>

@@ -460,7 +460,7 @@ export default function QRCodeGenerator({ userCompany }: QRCodeGeneratorProps) {
                   <option value="">Choose an event</option>
                   {events.map((event) => (
                     <option key={event.id} value={event.id}>
-                      {userCompany ? event.name : `${event.name} (${event.company.name})`}
+                      {userCompany ? event.name : `${event.name} (${event.company?.name || 'Unknown Company'})`}
                     </option>
                   ))}
                 </select>

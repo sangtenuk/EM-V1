@@ -1,21 +1,33 @@
-/* import React, { useState, useEffect } from 'react' */
- import { useState, useEffect } from 'react' 
-import { Plus, Building2, Calendar, Users, UserPlus, Edit, Trash2 } from 'lucide-react'
+import { useState, useEffect } from 'react' 
+import { Plus, Building2, Calendar, Users, UserPlus, Edit, Trash2, Mail, Phone, Star, TrendingUp, Activity } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
+import { useHybridDB } from '../../lib/hybridDB'
 import toast from 'react-hot-toast'
 import { create } from 'zustand';
 import { hybridDB } from '../../lib/hybridDB';
+import { Link } from 'react-router-dom';
+import { uploadToPublicFolder, getFileUrl } from '../../lib/fileUpload';
 
 interface Company {
   id: string
   name: string
-  created_at: string
+  created_at?: string
   event_count?: number
   attendee_count?: number
   person_in_charge?: string
   contact_number?: string
   email?: string
   logo?: string
+  lastSynced?: string
+  syncStatus?: 'pending' | 'synced' | 'error'
+  isLocal?: boolean
+  events?: Array<{
+    id: string
+    name: string
+    date: string | null
+    attendee_count: number
+    checked_in_count: number
+  }>
 }
 
 interface CompanyUser {
@@ -38,17 +50,29 @@ function stringToColor(str: string) {
   return color;
 }
 
+// Get gradient colors based on company color
+function getGradientColors(baseColor: string) {
+  return {
+    from: baseColor + '20',
+    to: baseColor + '10',
+    border: baseColor + '30'
+  }
+}
+
 export default function CompanyManagement() {
+  const { getCompanies, createCompany: createCompanyHybrid, updateCompany: updateCompanyHybrid, deleteCompany: deleteCompanyHybrid } = useHybridDB();
   const [companies, setCompanies] = useState<Company[]>([])
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([])
   const [showModal, setShowModal] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
   const [editingCompany, setEditingCompany] = useState<Company | null>(null)
+  const [editingUser, setEditingUser] = useState<CompanyUser | null>(null)
   const [newCompanyName, setNewCompanyName] = useState('')
   const [userForm, setUserForm] = useState({
     email: '',
     password: '',
-    company_id: ''
+    company_id: '',
+    newPassword: ''
   })
   const [loading, setLoading] = useState(true)
   // Add new state for company details
@@ -69,30 +93,45 @@ export default function CompanyManagement() {
 
   const fetchCompanies = async () => {
     try {
-      const { data: companiesData, error } = await supabase
-        .from('companies')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const companiesData = await getCompanies();
 
-      if (error) throw error
-
-      // Fetch event and attendee counts for each company
+      // Fetch events and attendees for each company
       const companiesWithCounts = await Promise.all(
         companiesData.map(async (company) => {
-          const { data: events } = await supabase
-            .from('events')
-            .select('id')
-            .eq('company_id', company.id)
+          try {
+            const { data: events } = await supabase
+              .from('events')
+              .select(`
+                id,
+                name,
+                date,
+                attendees(id, checked_in)
+              `)
+              .eq('company_id', company.id)
+              .order('date', { ascending: false })
 
-          const { data: attendees } = await supabase
-            .from('attendees')
-            .select('id')
-            .in('event_id', events?.map(e => e.id) || [])
+            const allAttendees = events?.flatMap(e => e.attendees || []) || []
 
-          return {
-            ...company,
-            event_count: events?.length || 0,
-            attendee_count: attendees?.length || 0
+            return {
+              ...company,
+              event_count: events?.length || 0,
+              attendee_count: allAttendees.length,
+              events: events?.map(event => ({
+                id: event.id,
+                name: event.name,
+                date: event.date,
+                attendee_count: event.attendees?.length || 0,
+                checked_in_count: event.attendees?.filter((a: any) => a.checked_in).length || 0
+              })) || []
+            }
+          } catch (error) {
+            // If we can't fetch events (offline), just return the company data
+            return {
+              ...company,
+              event_count: 0,
+              attendee_count: 0,
+              events: []
+            }
           }
         })
       )
@@ -127,11 +166,7 @@ export default function CompanyManagement() {
     if (!companyForm.name.trim()) return
 
     try {
-      const { error } = await supabase
-        .from('companies')
-        .insert([{ ...companyForm }])
-
-      if (error) throw error
+      await createCompanyHybrid({ ...companyForm })
 
       toast.success('Company created successfully!')
       setCompanyForm({ name: '', person_in_charge: '', contact_number: '', email: '', logo: '' })
@@ -147,12 +182,7 @@ export default function CompanyManagement() {
     if (!companyForm.name.trim() || !editingCompany) return
 
     try {
-      const { error } = await supabase
-        .from('companies')
-        .update({ ...companyForm })
-        .eq('id', editingCompany.id)
-
-      if (error) throw error
+      await updateCompanyHybrid(editingCompany.id, { ...companyForm })
 
       toast.success('Company updated successfully!')
       setCompanyForm({ name: '', person_in_charge: '', contact_number: '', email: '', logo: '' })
@@ -168,12 +198,7 @@ export default function CompanyManagement() {
     if (!confirm('Are you sure you want to delete this company? This will also delete all events and attendees.')) return
 
     try {
-      const { error } = await supabase
-        .from('companies')
-        .delete()
-        .eq('id', companyId)
-
-      if (error) throw error
+      await deleteCompanyHybrid(companyId)
       toast.success('Company deleted successfully!')
       fetchCompanies()
       fetchCompanyUsers()
@@ -192,6 +217,17 @@ export default function CompanyManagement() {
       logo: company.logo || '',
     })
     setShowModal(true)
+  }
+
+  const openEditUserModal = (user: CompanyUser) => {
+    setEditingUser(user)
+    setUserForm({
+      email: user.email,
+      password: '',
+      company_id: user.company_id,
+      newPassword: ''
+    })
+    setShowUserModal(true)
   }
 
   const createCompanyUser = async (e: React.FormEvent) => {
@@ -226,11 +262,60 @@ export default function CompanyManagement() {
       }
 
       toast.success('Company user created successfully!')
-      setUserForm({ email: '', password: '', company_id: '' })
+      setUserForm({ email: '', password: '', company_id: '', newPassword: '' })
       setShowUserModal(false)
       fetchCompanyUsers()
     } catch (error: any) {
       toast.error('Error creating user: ' + error.message)
+    }
+  }
+
+  const updateCompanyUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!userForm.email.trim() || !editingUser) return
+
+    try {
+      // Update email in company_users table
+      const { error: updateError } = await supabase
+        .from('company_users')
+        .update({ email: userForm.email })
+        .eq('id', editingUser.id)
+
+      if (updateError) throw updateError
+
+      // If new password is provided, update it via Edge Function
+      if (userForm.newPassword.trim()) {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          throw new Error('Not authenticated')
+        }
+
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-company-user-password`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: editingUser.id,
+            new_password: userForm.newPassword
+          })
+        })
+
+        const result = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update password')
+        }
+      }
+
+      toast.success('User updated successfully!')
+      setUserForm({ email: '', password: '', company_id: '', newPassword: '' })
+      setEditingUser(null)
+      setShowUserModal(false)
+      fetchCompanyUsers()
+    } catch (error: any) {
+      toast.error('Error updating user: ' + error.message)
     }
   }
 
@@ -256,7 +341,9 @@ export default function CompanyManagement() {
   const resetForm = () => {
     setNewCompanyName('')
     setEditingCompany(null)
+    setEditingUser(null)
     setShowModal(false)
+    setShowUserModal(false)
   }
 
   // Add logo upload handler
@@ -265,26 +352,10 @@ export default function CompanyManagement() {
     if (!file) return;
     setUploadingLogo(true);
     try {
-      // Upload to Supabase Storage in 'logo/' folder
-      const fileExt = file.name.split('.').pop();
-      const fileName = `logo/${crypto.randomUUID()}.${fileExt}`;
-      const { data, error } = await supabase.storage.from('bucket').upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
-      });
-      if (error) throw error;
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage.from('bucket').getPublicUrl(fileName);
-      const logoUrl = publicUrlData.publicUrl;
-      setCompanyForm({ ...companyForm, logo: logoUrl });
-      // Save a local copy in IndexedDB for offline mode
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = event.target?.result as string;
-        await hybridDB.table('company_logos').put({ id: fileName, base64 });
-      };
-      reader.readAsDataURL(file);
-      toast.success('Logo uploaded!');
+      // Upload to public folder using the new utility
+      const uploadedFile = await uploadToPublicFolder(file, 'logo', undefined, editingCompany?.id);
+      setCompanyForm({ ...companyForm, logo: uploadedFile.url });
+      toast.success('Logo uploaded to public folder!');
     } catch (err: any) {
       toast.error('Error uploading logo: ' + err.message);
     } finally {
@@ -301,282 +372,463 @@ export default function CompanyManagement() {
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Company Management</h1>
-          <p className="text-gray-600 mt-2">Manage companies, events, and user access</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Company Management
+            </h1>
+            <p className="text-gray-600 mt-2">Manage companies, events, and user access</p>
+          </div>
+          <div className="flex space-x-3">
+            <button
+              onClick={() => setShowUserModal(true)}
+              className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            >
+              <UserPlus className="h-5 w-5 mr-2" />
+              Add User
+            </button>
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-2 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Add Company
+            </button>
+          </div>
         </div>
-        <div className="flex space-x-3">
-          <button
-            onClick={() => setShowUserModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
-          >
-            <UserPlus className="h-5 w-5 mr-2" />
-            Add User
-          </button>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Company
-          </button>
+
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <Building2 className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Companies</p>
+                <p className="text-2xl font-bold text-gray-900">{companies.length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center">
+              <div className="p-3 bg-green-100 rounded-xl">
+                <Calendar className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Events</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {companies.reduce((sum, company) => sum + (company.event_count || 0), 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center">
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Attendees</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {companies.reduce((sum, company) => sum + (company.attendee_count || 0), 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+            <div className="flex items-center">
+              <div className="p-3 bg-orange-100 rounded-xl">
+                <UserPlus className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Users</p>
+                <p className="text-2xl font-bold text-gray-900">{companyUsers.length}</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Companies with Users */}
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6"
->        {companies.map((company) => {
-          const companyUsersList = companyUsers.filter(user => user.company_id === company.id)
-          return (
-            <div key={company.id} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center">
-                  <Building2 className="h-8 w-8 text-blue-600 mr-3" />
-                  <div>
-                    <div className="flex items-center mb-2">
-                      <span className="inline-block w-4 h-4 rounded-full mr-2 border border-gray-300" style={{ backgroundColor: stringToColor(company.id) }} title="Company Color" />
-                      <h3 className="text-xl font-semibold text-gray-900">{company.name}</h3>
-                    </div>
-                    <p className="text-sm text-gray-500">
-                      Created {new Date(company.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => openEditModal(company)}
-                    className="text-gray-400 hover:text-blue-600 transition-colors"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => deleteCompany(company.id)}
-                    className="text-gray-400 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="flex items-center text-gray-600">
-                  <Calendar className="h-5 w-5 mr-2" />
-                  <span>{company.event_count} Events</span>
-                </div>
-                <div className="flex items-center text-gray-600">
-                  <Users className="h-5 w-5 mr-2" />
-                  <span>{company.attendee_count} Total Attendees</span>
-                </div>
-                <div className="flex items-center text-gray-600">
-                  <UserPlus className="h-5 w-5 mr-2" />
-                  <span>{companyUsersList.length} Users</span>
-                </div>
-              </div>
-
-              {/* Company Users */}
-              {companyUsersList.length > 0 && (
-                <div className="border-t pt-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Company Users</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {companyUsersList.map((user) => (
-                      <div key={user.id} className="bg-gray-50 rounded-lg p-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-medium text-gray-900 text-sm">{user.email}</div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(user.created_at).toLocaleDateString()}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => deleteCompanyUser(user.id)}
-                            className="text-gray-400 hover:text-red-600 transition-colors"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+        {/* Companies Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {companies.map((company) => {
+            const companyUsersList = companyUsers.filter(user => user.company_id === company.id)
+            const companyColor = stringToColor(company.id)
+            const gradients = getGradientColors(companyColor)
+            return (
+              <div key={company.id} className="group bg-white rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden">
+                {/* Company Header with Gradient */}
+                <div 
+                  className="p-4 text-white relative overflow-hidden"
+                  style={{
+                    background: `linear-gradient(135deg, ${companyColor}, ${companyColor}dd)`
+                  }}
+                >
+                  <div className="absolute inset-0 bg-black opacity-10"></div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center flex-1 min-w-0">
+                        <div className="p-2 bg-white bg-opacity-20 rounded-xl mr-3">
+                          <Building2 className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-lg font-bold truncate">{company.name}</h3>
+                          <p className="text-sm opacity-90">
+                            Created {company.created_at ? new Date(company.created_at).toLocaleDateString() : 'Recently'}
+                          </p>
                         </div>
                       </div>
-                    ))}
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => openEditModal(company)}
+                          className="p-2 bg-white bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-all duration-200"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteCompany(company.id)}
+                          className="p-2 bg-red-500 bg-opacity-20 rounded-lg hover:bg-opacity-30 transition-all duration-200"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold">{company.event_count}</div>
+                        <div className="text-xs opacity-90">Events</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold">{company.attendee_count}</div>
+                        <div className="text-xs opacity-90">Attendees</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold">{companyUsersList.length}</div>
+                        <div className="text-xs opacity-90">Users</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          )
-        })}
-          </div>
-      </div>
 
-      {companies.length === 0 && companyUsers.length === 0 && (
-        <div className="text-center py-12">
-          <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No companies found</h3>
-          <p className="text-gray-600 mb-4">Get started by creating your first company</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Add Company
-          </button>
-        </div>
-      )}
+                {/* Company Content */}
+                <div className="p-4">
+                  {/* Contact Info */}
+                  {(company.person_in_charge || company.contact_number || company.email) && (
+                    <div className="mb-3 p-3 bg-gray-50 rounded-xl">
+                      {company.person_in_charge && (
+                        <div className="flex items-center text-gray-700 mb-2">
+                          <Star className="h-4 w-4 mr-2 text-yellow-500" />
+                          <span className="text-sm font-medium">{company.person_in_charge}</span>
+                        </div>
+                      )}
+                      {company.contact_number && (
+                        <div className="flex items-center text-gray-600 mb-2">
+                          <Phone className="h-4 w-4 mr-2 text-blue-500" />
+                          <span className="text-sm">{company.contact_number}</span>
+                        </div>
+                      )}
+                      {company.email && (
+                        <div className="flex items-center text-gray-600">
+                          <Mail className="h-4 w-4 mr-2 text-green-500" />
+                          <span className="text-sm">{company.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-      {/* Create Company User Modal */}
-      {showUserModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Create Company User</h2>
-            <form onSubmit={createCompanyUser}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Company *
-                  </label>
-                  <select
-                    value={userForm.company_id}
-                    onChange={(e) => setUserForm({ ...userForm, company_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    <option value="">Select a company</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={userForm.email}
-                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter email address"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    value={userForm.password}
-                    onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Enter password"
-                    required
-                    minLength={6}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowUserModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Create User
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                  {/* Events Section */}
+                  {company.events && company.events.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                        <Calendar className="h-4 w-4 mr-2 text-blue-500" />
+                        Events
+                      </h4>
+                      <div className="space-y-2">
+                        {company.events.map((event) => (
+                          <Link
+                            key={event.id}
+                            to={`/admin/events/${event.id}`}
+                            className="block p-2 rounded-lg hover:bg-gray-50 transition-all duration-200 border border-gray-100 hover:border-gray-200"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="flex-1 min-w-0">
+                                <div 
+                                  className="font-semibold text-gray-900 px-3 py-1 rounded-lg text-sm inline-block"
+                                  style={{ 
+                                    backgroundColor: gradients.from,
+                                    color: companyColor,
+                                    border: `1px solid ${gradients.border}`
+                                  }}
+                                >
+                                  {event.name}
+                                </div>
+                                {event.date && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {new Date(event.date).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right ml-3">
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {event.checked_in_count}/{event.attendee_count}
+                                </div>
+                                <div className="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                                  <div 
+                                    className="h-2 rounded-full transition-all duration-500"
+                                    style={{ 
+                                      width: `${event.attendee_count > 0 ? (event.checked_in_count / event.attendee_count) * 100 : 0}%`,
+                                      backgroundColor: companyColor
+                                    }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-      {/* Legacy company grid - keeping for backward compatibility */}
-      <div className="hidden">
-        {companies.map((company) => (
-          <div key={company.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center mb-4">
-              <Building2 className="h-8 w-8 text-blue-600 mr-3" />
-              <h3 className="text-xl font-semibold text-gray-900">{company.name}</h3>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center text-gray-600">
-                <Calendar className="h-5 w-5 mr-2" />
-                <span>{company.event_count} Events</span>
-              </div>
-              <div className="flex items-center text-gray-600">
-                <Users className="h-5 w-5 mr-2" />
-                <span>{company.attendee_count} Total Attendees</span>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <p className="text-sm text-gray-500">
-                Created {new Date(company.created_at).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Create Company Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">
-              {editingCompany ? 'Edit Company' : 'Create New Company'}
-            </h2>
-            <form onSubmit={editingCompany ? editCompany : createCompany}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
-                  <input type="text" className="w-full px-3 py-2 border rounded" value={companyForm.name} onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Person in Charge</label>
-                  <input type="text" className="w-full px-3 py-2 border rounded" value={companyForm.person_in_charge} onChange={e => setCompanyForm({ ...companyForm, person_in_charge: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                  <input type="text" className="w-full px-3 py-2 border rounded" value={companyForm.contact_number} onChange={e => setCompanyForm({ ...companyForm, contact_number: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" className="w-full px-3 py-2 border rounded" value={companyForm.email} onChange={e => setCompanyForm({ ...companyForm, email: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Logo</label>
-                  <input type="file" accept="image/*" onChange={handleLogoUpload} disabled={uploadingLogo} />
-                  {uploadingLogo && <div className="text-xs text-blue-500 mt-1">Uploading...</div>}
-                  {companyForm.logo && (
-                    <img src={getStorageUrl(companyForm.logo)} alt="Logo Preview" className="w-12 h-12 rounded-full object-cover mt-2" />
+                  {/* Users Section */}
+                  {companyUsersList.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                        <UserPlus className="h-4 w-4 mr-2 text-purple-500" />
+                        Users ({companyUsersList.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {companyUsersList.map((user) => (
+                          <div key={user.id} className="flex items-center justify-between p-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900 text-sm truncate">{user.email}</div>
+                              <div className="text-xs text-gray-500">
+                                {new Date(user.created_at).toLocaleDateString()}
+                              </div>
+                            </div>
+                            <div className="flex space-x-1 ml-3">
+                              <button
+                                onClick={() => openEditUserModal(user)}
+                                className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => deleteCompanyUser(user.id)}
+                                className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  {editingCompany ? 'Update Company' : 'Create Company'}
-                </button>
-              </div>
-            </form>
-          </div>
+            )
+          })}
         </div>
-      )}
+
+        {companies.length === 0 && companyUsers.length === 0 && (
+          <div className="text-center py-16">
+            <div className="bg-white rounded-2xl p-12 shadow-lg border border-gray-100 max-w-md mx-auto">
+              <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-gray-900 mb-3">No companies found</h3>
+              <p className="text-gray-600 mb-6">Get started by creating your first company</p>
+              <button
+                onClick={() => setShowModal(true)}
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
+                Add Company
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Create/Edit Company User Modal */}
+        {showUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">
+                {editingUser ? 'Edit Company User' : 'Create Company User'}
+              </h2>
+              <form onSubmit={editingUser ? updateCompanyUser : createCompanyUser}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Company *
+                    </label>
+                    <select
+                      value={userForm.company_id}
+                      onChange={(e) => setUserForm({ ...userForm, company_id: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                      disabled={!!editingUser}
+                    >
+                      <option value="">Select a company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={userForm.email}
+                      onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter email address"
+                      required
+                    />
+                  </div>
+                  {!editingUser && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Password *
+                      </label>
+                      <input
+                        type="password"
+                        value={userForm.password}
+                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter password"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                  )}
+                  {editingUser && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        New Password (leave blank to keep current)
+                      </label>
+                      <input
+                        type="password"
+                        value={userForm.newPassword}
+                        onChange={(e) => setUserForm({ ...userForm, newPassword: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter new password"
+                        minLength={6}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end space-x-3 mt-8">
+                  <button
+                    type="button"
+                                      onClick={() => {
+                    setShowUserModal(false)
+                    setEditingUser(null)
+                    setUserForm({ email: '', password: '', company_id: '', newPassword: '' })
+                  }}
+                    className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 font-medium"
+                  >
+                    {editingUser ? 'Update User' : 'Create User'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Create Company Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+              <h2 className="text-2xl font-bold mb-6 text-gray-900">
+                {editingCompany ? 'Edit Company' : 'Create New Company'}
+              </h2>
+              <form onSubmit={editingCompany ? editCompany : createCompany}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Company Name *</label>
+                    <input 
+                      type="text" 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                      value={companyForm.name} 
+                      onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })} 
+                      required 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Person in Charge</label>
+                    <input 
+                      type="text" 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                      value={companyForm.person_in_charge} 
+                      onChange={e => setCompanyForm({ ...companyForm, person_in_charge: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Contact Number</label>
+                    <input 
+                      type="text" 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                      value={companyForm.contact_number} 
+                      onChange={e => setCompanyForm({ ...companyForm, contact_number: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+                    <input 
+                      type="email" 
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                      value={companyForm.email} 
+                      onChange={e => setCompanyForm({ ...companyForm, email: e.target.value })} 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Logo</label>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleLogoUpload} 
+                      disabled={uploadingLogo}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {uploadingLogo && <div className="text-sm text-blue-500 mt-2">Uploading...</div>}
+                    {companyForm.logo && (
+                      <img src={getStorageUrl(companyForm.logo)} alt="Logo Preview" className="w-16 h-16 rounded-xl object-cover mt-2" />
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-3 mt-8">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 font-medium"
+                  >
+                    {editingCompany ? 'Update Company' : 'Create Company'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

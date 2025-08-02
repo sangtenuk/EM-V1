@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Image, QrCode, Shuffle, Download, Trash2, Maximize2, Minimize2 } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
+import { useSearchParams } from 'react-router-dom'
 
 import toast from 'react-hot-toast'
 import QRCodeLib from 'qrcode'
@@ -29,6 +30,7 @@ interface EventGalleryProps {
 }
 
 export default function EventGallery({ userCompany }: EventGalleryProps) {
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [photos, setPhotos] = useState<GalleryPhoto[]>([])
@@ -39,10 +41,20 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
   const [loading, setLoading] = useState(false)
   const [maxUploads, setMaxUploads] = useState(2)
   const [updatingMaxUploads, setUpdatingMaxUploads] = useState(false)
+  const [showCaptions, setShowCaptions] = useState(true)
+  const [showSenderDetails, setShowSenderDetails] = useState(true)
 
   useEffect(() => {
     fetchEvents()
   }, [])
+
+  // Handle eventId from URL parameters
+  useEffect(() => {
+    const eventIdFromUrl = searchParams.get('eventId')
+    if (eventIdFromUrl && events.length > 0) {
+      setSelectedEventId(eventIdFromUrl)
+    }
+  }, [searchParams, events])
 
   useEffect(() => {
     if (selectedEventId) {
@@ -242,9 +254,8 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                     scale: isActive ? 1.3 : 0.9,
                     zIndex: 10
                   }}
-                  onClick={() => setCurrentSlideIndex(index)}
                 >
-                  <div className="relative cursor-pointer">
+                  <div className="relative">
                     <img
                       src={getStorageUrl(photo.photo_url)}
                       alt="Gallery"
@@ -255,19 +266,23 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                     />
                     
                     {/* Photo Info - Only show for active photo */}
-                    {isActive && (
+                    {isActive && (showCaptions || showSenderDetails) && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3, duration: 0.4 }}
                         className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-sm rounded-lg p-2 text-white text-center min-w-[140px]"
                       >
-                        <div className="text-sm font-semibold truncate">
-                          {photo.attendee_name || 'Anonymous'}
-                        </div>
-                        <div className="text-xs opacity-80">
-                          {new Date(photo.created_at).toLocaleDateString()}
-                        </div>
+                        {showSenderDetails && (
+                          <div className="text-sm font-semibold truncate">
+                            {photo.attendee_name || 'Anonymous'}
+                          </div>
+                        )}
+                        {showCaptions && (
+                          <div className="text-xs opacity-80">
+                            {new Date(photo.created_at).toLocaleDateString()}
+                          </div>
+                        )}
                       </motion.div>
                     )}
                     
@@ -314,32 +329,44 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                 />
                 
                 {/* Active Photo Info */}
-                <motion.div
-                  className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.3, duration: 0.4 }}
-                >
-                  <div className="text-lg font-semibold">
-                    {photos[currentSlideIndex]?.attendee_name || 'Anonymous'}
-                  </div>
-                  <div className="text-sm opacity-80">
-                    {new Date(photos[currentSlideIndex]?.created_at).toLocaleString()}
-                  </div>
-                </motion.div>
+                {(showCaptions || showSenderDetails) && (
+                  <motion.div
+                    className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white"
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.3, duration: 0.4 }}
+                  >
+                    {showSenderDetails && (
+                      <div className="text-lg font-semibold">
+                        {photos[currentSlideIndex]?.attendee_name || 'Anonymous'}
+                      </div>
+                    )}
+                    {showCaptions && (
+                      <div className="text-sm opacity-80">
+                        {new Date(photos[currentSlideIndex]?.created_at).toLocaleString()}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
               </div>
             </motion.div>
           )}
           
           {/* Navigation Controls */}
-          <div className="absolute bottom-8 left-8 text-white bg-black/50 backdrop-blur-sm rounded-lg p-4">
-            <div className="text-lg font-semibold">
-              {photos[currentSlideIndex]?.attendee_name || 'Anonymous'}
+          {(showCaptions || showSenderDetails) && (
+            <div className="absolute bottom-8 left-8 text-white bg-black/50 backdrop-blur-sm rounded-lg p-4">
+              {showSenderDetails && (
+                <div className="text-lg font-semibold">
+                  {photos[currentSlideIndex]?.attendee_name || 'Anonymous'}
+                </div>
+              )}
+              {showCaptions && (
+                <div className="text-sm opacity-80">
+                  {new Date(photos[currentSlideIndex]?.created_at).toLocaleString()}
+                </div>
+              )}
             </div>
-            <div className="text-sm opacity-80">
-              {new Date(photos[currentSlideIndex]?.created_at).toLocaleString()}
-            </div>
-          </div>
+          )}
           
           <div className="absolute bottom-8 right-8 text-white bg-black/50 backdrop-blur-sm rounded-lg px-4 py-2">
             {currentSlideIndex + 1} / {photos.length}
@@ -360,11 +387,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             ))}
           </div>
           
-          {/* Flying Animation Controls */}
-          <div className="absolute top-8 left-8 text-white bg-black/50 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-sm font-semibold">Flying Gallery</div>
-            <div className="text-xs opacity-80">Click photos to focus</div>
-          </div>
+          
         </>
       ) : (
         <div className="text-white text-center flex items-center justify-center h-full">
@@ -495,6 +518,30 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                     Default: 2 photos
                   </div>
                 </div>
+
+                <div className="bg-purple-50 rounded-lg p-3">
+                  <div className="text-purple-700 font-medium text-sm mb-2">Display Options</div>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showCaptions}
+                        onChange={(e) => setShowCaptions(e.target.checked)}
+                        className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+                      />
+                      <span className="text-xs text-purple-600">Show captions</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showSenderDetails}
+                        onChange={(e) => setShowSenderDetails(e.target.checked)}
+                        className="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500"
+                      />
+                      <span className="text-xs text-purple-600">Show sender details</span>
+                    </label>
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -579,7 +626,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                           </button>
                         </div>
                       </div>
-                      {photo.attendee_name && (
+                      {showSenderDetails && photo.attendee_name && (
                         <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white text-xs p-1 rounded-b-lg truncate">
                           {photo.attendee_name}
                         </div>

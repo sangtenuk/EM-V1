@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { 
   Building2, 
   Calendar, 
@@ -23,7 +23,9 @@ import {
   Zap,
   Target,
   Award,
-  Rocket
+  Rocket,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useGlobalModeStore, HybridMode } from '../../lib/globalModeStore';
@@ -31,6 +33,18 @@ import { useSyncStatusStore, SyncStatus } from '../../lib/hybridDB';
 
 interface DashboardProps {
   userCompany?: any
+}
+
+interface Event {
+  id: string
+  name: string
+  date: string | null
+  company: { 
+    id: string
+    name: string 
+  }
+  attendee_count: number
+  checked_in_count: number
 }
 
 interface AdminStats {
@@ -96,23 +110,53 @@ interface CompanyStats {
   }>
 }
 
+interface Event {
+  id: string
+  name: string
+  date: string | null
+  company: { 
+    id: string
+    name: string 
+  }
+  attendee_count: number
+  checked_in_count: number
+}
+
 export default function Dashboard({ userCompany }: DashboardProps) {
+  const navigate = useNavigate()
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null)
   const [companyStats, setCompanyStats] = useState<CompanyStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<AdminStats['searchResults'] | null>(null)
   const [searching, setSearching] = useState(false)
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [events, setEvents] = useState<Event[]>([])
   const { mode, setMode } = useGlobalModeStore();
   const { status: syncStatus, lastSync } = useSyncStatusStore();
 
+  // Memoized computed values
+  const isAdmin = useMemo(() => !userCompany, [userCompany])
+  const hasSearchResults = useMemo(() => searchResults && (
+    searchResults.companies.length > 0 || 
+    searchResults.users.length > 0 || 
+    searchResults.events.length > 0
+  ), [searchResults])
+
   useEffect(() => {
-    if (userCompany) {
-      fetchCompanyStats()
-    } else {
-      fetchAdminStats()
+    const initializeDashboard = async () => {
+      if (userCompany) {
+        await fetchCompanyStats()
+      } else {
+        await fetchAdminStats()
+      }
+      await fetchEvents()
     }
+    
+    initializeDashboard()
   }, [userCompany])
+
+
 
   useEffect(() => {
     if (searchTerm && !userCompany) {
@@ -125,7 +169,23 @@ export default function Dashboard({ userCompany }: DashboardProps) {
     }
   }, [searchTerm, userCompany])
 
-  const performSearch = async () => {
+  // Handle clicking outside search results to clear them
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const searchContainer = document.querySelector('[data-search-container]')
+      if (searchContainer && !searchContainer.contains(event.target as Node)) {
+        setSearchResults(null)
+        setSearchTerm('')
+      }
+    }
+
+    if (searchResults) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [searchResults])
+
+  const performSearch = useCallback(async () => {
     if (!searchTerm.trim()) {
       setSearchResults(null)
       return
@@ -135,43 +195,41 @@ export default function Dashboard({ userCompany }: DashboardProps) {
     try {
       const searchPattern = `%${searchTerm.toLowerCase()}%`
 
-      // Search companies
-      const { data: companies } = await supabase
-        .from('companies')
-        .select('id, name, created_at')
-        .ilike('name', searchPattern)
-        .limit(5)
-
-      // Search users
-      const { data: users } = await supabase
-        .from('company_users')
-        .select(`
-          id,
-          email,
-          company:companies(name)
-        `)
-        .ilike('email', searchPattern)
-        .limit(5)
-
-      // Search events
-      const { data: events } = await supabase
-        .from('events')
-        .select(`
-          id,
-          name,
-          date,
-          company:companies(name)
-        `)
-        .ilike('name', searchPattern)
-        .limit(5)
+      // Parallel search for better performance
+      const [companiesResult, usersResult, eventsResult] = await Promise.all([
+        supabase
+          .from('companies')
+          .select('id, name, created_at')
+          .ilike('name', searchPattern)
+          .limit(5),
+        supabase
+          .from('company_users')
+          .select(`
+            id,
+            email,
+            company:companies(name)
+          `)
+          .ilike('email', searchPattern)
+          .limit(5),
+        supabase
+          .from('events')
+          .select(`
+            id,
+            name,
+            date,
+            company:companies(name)
+          `)
+          .ilike('name', searchPattern)
+          .limit(5)
+      ])
 
       setSearchResults({
-        companies: companies || [],
-        users: (users || []).map(user => ({
+        companies: companiesResult.data || [],
+        users: (usersResult.data || []).map(user => ({
           ...user,
           company: Array.isArray(user.company) ? user.company[0] : user.company
         })),
-        events: (events || []).map(event => ({
+        events: (eventsResult.data || []).map(event => ({
           ...event,
           company: Array.isArray(event.company) ? event.company[0] : event.company
         }))
@@ -181,7 +239,147 @@ export default function Dashboard({ userCompany }: DashboardProps) {
     } finally {
       setSearching(false)
     }
+  }, [searchTerm])
+
+  const handleSearchResultClick = useCallback((type: 'company' | 'user' | 'event', id?: string) => {
+    // Clear search results when navigating
+    setSearchResults(null)
+    setSearchTerm('')
+    
+    // Navigate based on type
+    const routes = {
+      company: '/admin/companies',
+      user: '/admin/companies',
+      event: id ? `/admin/events/${id}` : '/admin/events'
+    }
+    
+    navigate(routes[type])
+  }, [navigate])
+
+  const fetchEvents = async () => {
+    try {
+      let query = supabase
+        .from('events')
+        .select(`
+          id,
+          name,
+          date,
+          company:companies(id, name),
+          attendees(id, checked_in)
+        `)
+        .order('date', { ascending: true })
+
+      // Filter by company if user is a company user
+      if (userCompany) {
+        query = query.eq('company_id', userCompany.company_id)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+
+      const eventsWithCounts = data?.map(event => ({
+        ...event,
+        company: Array.isArray(event.company) ? event.company[0] : event.company,
+        attendee_count: event.attendees?.length || 0,
+        checked_in_count: event.attendees?.filter((a: any) => a.checked_in).length || 0
+      })) || []
+
+      setEvents(eventsWithCounts)
+    } catch (error) {
+      console.error('Error fetching events:', error)
+    }
   }
+
+  // Utility to generate a color from a string
+  const stringToColor = useCallback((str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const color = `#${((hash >> 24) & 0xFF).toString(16).padStart(2, '0')}${((hash >> 16) & 0xFF).toString(16).padStart(2, '0')}${((hash >> 8) & 0xFF).toString(16).padStart(2, '0')}`;
+    return color;
+  }, [])
+
+  const getDaysInMonth = useCallback((date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  }, [])
+
+  const getFirstDayOfMonth = useCallback((date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+  }, [])
+
+  const getEventsForDate = useCallback((date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    return events.filter(event => {
+      if (!event.date) return false
+      // Handle both date-only and datetime formats
+      const eventDate = event.date.split('T')[0]
+      return eventDate === dateStr
+    })
+  }, [events])
+
+  const renderCalendar = useCallback(() => {
+    const daysInMonth = getDaysInMonth(currentDate)
+    const firstDay = getFirstDayOfMonth(currentDate)
+    const days = []
+
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="p-1 text-gray-300"></div>)
+    }
+
+    // Add cells for each day of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+      const dayEvents = getEventsForDate(date)
+      const isToday = date.toDateString() === new Date().toDateString()
+
+      days.push(
+        <div 
+          key={day} 
+          className={`p-1 min-h-[60px] border border-gray-200 ${
+            isToday ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'
+          }`}
+        >
+          <div className="text-xs font-medium mb-1">{day}</div>
+          <div className="space-y-0.5">
+            {dayEvents.length === 0 ? (
+              <div className="text-xs text-gray-400 text-center">No events</div>
+            ) : (
+              <>
+                {dayEvents.slice(0, 1).map((event) => {
+                 const companyColor = stringToColor(event.company?.id || event.id || 'default')
+                  return (
+                    <Link
+                      key={event.id}
+                      to={`/admin/events/${event.id}`}
+                      className="block text-xs p-1 rounded hover:shadow-sm transition-all cursor-pointer text-white font-medium"
+                      style={{ backgroundColor: companyColor }}
+                      title={`${event.name} - ${event.checked_in_count}/${event.attendee_count} checked in`}
+                    >
+                      <div className="truncate text-xs" title={event.name}>
+                        {event.name}
+                      </div>
+                      <div className="text-white/80 text-xs">
+                        {event.checked_in_count}/{event.attendee_count}
+                      </div>
+                    </Link>
+                  )
+                })}
+                {dayEvents.length > 1 && (
+                  <div className="text-xs text-gray-500 text-center">
+                    +{dayEvents.length - 1} more
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    return days
+  }, [currentDate, getDaysInMonth, getFirstDayOfMonth, getEventsForDate, stringToColor])
 
   const fetchAdminStats = async () => {
     try {
@@ -408,15 +606,18 @@ export default function Dashboard({ userCompany }: DashboardProps) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="relative">
-          <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
-          <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-purple-600 animate-pulse" />
-        </div>
+  // Memoized loading component
+  const LoadingSpinner = useMemo(() => (
+    <div className="flex items-center justify-center h-64">
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+        <Sparkles className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-6 w-6 text-purple-600 animate-pulse" />
       </div>
-    )
+    </div>
+  ), [])
+
+  if (loading) {
+    return LoadingSpinner
   }
 
   // Admin Dashboard
@@ -438,9 +639,9 @@ export default function Dashboard({ userCompany }: DashboardProps) {
 
         {/* Hybrid Mode Toggle */}
         <div style={{ marginBottom: 16 }}>
-          <label htmlFor="hybrid-mode-select" style={{ fontWeight: 'bold', marginRight: 8 }}>Data Mode:</label>
+          <label htmlFor="admin-hybrid-mode-select" style={{ fontWeight: 'bold', marginRight: 8 }}>Data Mode:</label>
           <select
-            id="hybrid-mode-select"
+            id="admin-hybrid-mode-select"
             value={mode}
             onChange={e => setMode(e.target.value as HybridMode)}
             style={{ padding: 4, borderRadius: 4 }}
@@ -466,7 +667,7 @@ export default function Dashboard({ userCompany }: DashboardProps) {
         </div>
 
         {/* Search Bar */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6" data-search-container>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
@@ -486,7 +687,7 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           </div>
 
           {/* Search Results */}
-          {searchResults && (
+          {hasSearchResults && searchResults && (
             <div className="mt-6 space-y-6">
               {searchResults.companies.length > 0 && (
                 <div className="animate-fade-in">
@@ -496,7 +697,12 @@ export default function Dashboard({ userCompany }: DashboardProps) {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {searchResults.companies.map(company => (
-                      <div key={company.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-300">
+                      <div 
+                        key={company.id} 
+                        className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100 hover:shadow-md transition-all duration-300 cursor-pointer"
+                        onClick={() => handleSearchResultClick('company')}
+                        title="Click to view company details"
+                      >
                         <div className="flex items-center">
                           <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg mr-3">
                             <Building2 className="h-4 w-4 text-white" />
@@ -520,14 +726,19 @@ export default function Dashboard({ userCompany }: DashboardProps) {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {searchResults.users.map(user => (
-                      <div key={user.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 hover:shadow-md transition-all duration-300">
+                      <div 
+                        key={user.id} 
+                        className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100 hover:shadow-md transition-all duration-300 cursor-pointer"
+                        onClick={() => handleSearchResultClick('user')}
+                        title="Click to view user details"
+                      >
                         <div className="flex items-center">
                           <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg mr-3">
                             <Users className="h-4 w-4 text-white" />
                           </div>
                           <div>
                             <span className="font-medium text-gray-900 block">{user.email}</span>
-                            <span className="text-sm text-gray-500">{user.company.name}</span>
+                            <span className="text-sm text-gray-500">{user.company?.name || 'Unknown Company'}</span>
                           </div>
                         </div>
                       </div>
@@ -544,14 +755,19 @@ export default function Dashboard({ userCompany }: DashboardProps) {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {searchResults.events.map(event => (
-                      <div key={event.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-300">
+                      <div 
+                        key={event.id} 
+                        className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100 hover:shadow-md transition-all duration-300 cursor-pointer"
+                        onClick={() => handleSearchResultClick('event', event.id)}
+                        title="Click to view event details"
+                      >
                         <div className="flex items-center">
                           <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg mr-3">
                             <Calendar className="h-4 w-4 text-white" />
                           </div>
                           <div>
                             <span className="font-medium text-gray-900 block">{event.name}</span>
-                            <span className="text-sm text-gray-500">{event.company.name}</span>
+                            <span className="text-sm text-gray-500">{event.company?.name || 'Unknown Company'}</span>
                           </div>
                         </div>
                         {event.date && (
@@ -567,6 +783,8 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             </div>
           )}
         </div>
+
+
 
         {/* Admin Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -671,8 +889,10 @@ export default function Dashboard({ userCompany }: DashboardProps) {
           </div>
         </div>
 
+
+
         {/* Admin Management and Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
             <h2 className="text-xl font-semibold mb-6 flex items-center">
               <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg mr-3">
@@ -732,7 +952,7 @@ export default function Dashboard({ userCompany }: DashboardProps) {
                 <div key={event.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div>
                     <div className="font-medium text-gray-900">{event.name}</div>
-                    <div className="text-sm text-gray-600">{event.company.name}</div>
+                    <div className="text-sm text-gray-600">{event.company?.name || 'Unknown Company'}</div>
                     {event.date && (
                       <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full mt-1 inline-block">
                         {new Date(event.date).toLocaleDateString()}
@@ -780,7 +1000,7 @@ export default function Dashboard({ userCompany }: DashboardProps) {
                 <div key={user.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
                   <div>
                     <div className="font-medium text-gray-900">{user.email}</div>
-                    <div className="text-sm text-gray-600">{user.company.name}</div>
+                    <div className="text-sm text-gray-600">{user.company?.name || 'Unknown Company'}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
@@ -803,6 +1023,50 @@ export default function Dashboard({ userCompany }: DashboardProps) {
               )}
             </div>
           </div>
+
+          {/* Compact Calendar Section */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold flex items-center">
+                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg mr-3">
+                  <Calendar className="h-5 w-5 text-white" />
+                </div>
+                Event Calendar
+              </h2>
+              <div className="text-xs text-gray-500">
+                {events.length} events
+              </div>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-sm font-semibold">
+                  {currentDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </span>
+                <button
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+                  className="p-1 hover:bg-gray-100 rounded transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-7 gap-0.5 mb-2">
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                <div key={`${day}-${index}`} className="p-1 text-center text-xs font-medium text-gray-500">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-7 gap-0.5">
+              {renderCalendar()}
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -823,7 +1087,7 @@ export default function Dashboard({ userCompany }: DashboardProps) {
             Welcome Back!
           </h1>
           <p className="text-gray-600 text-lg">
-            <span className="font-semibold text-indigo-600">{userCompany.company.name}</span> Dashboard
+            <span className="font-semibold text-indigo-600">{userCompany?.company?.name || 'Company'}</span> Dashboard
           </p>
         </div>
 
@@ -893,6 +1157,270 @@ export default function Dashboard({ userCompany }: DashboardProps) {
         </div>
 
         
+
+        {/* Quick Actions and Recent Events */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <h2 className="text-2xl font-semibold mb-6 flex items-center">
+              <div className="p-2 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg mr-3">
+                <Zap className="h-6 w-6 text-white" />
+              </div>
+              Quick Actions
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {companyStats.quickActions.map((action, index) => {
+                const Icon = action.icon
+                return (
+                  <Link
+                    key={action.name}
+                    to={action.path}
+                    className="group p-6 border-2 border-gray-100 rounded-xl hover:border-transparent hover:shadow-xl transition-all duration-300 card-hover animate-scale-in"
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className={`w-12 h-12 bg-gradient-to-br ${action.gradient} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="font-semibold text-gray-900 text-lg mb-1">{action.name}</div>
+                    <div className="text-sm text-gray-600">{action.description}</div>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold flex items-center">
+                <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg mr-3">
+                  <Calendar className="h-6 w-6 text-white" />
+                </div>
+                Recent Events
+              </h2>
+              <Link 
+                to="/admin/events" 
+                className="text-green-600 hover:text-green-700 flex items-center text-sm font-medium bg-green-50 px-3 py-2 rounded-lg hover:bg-green-100 transition-all duration-300"
+              >
+                View All <ArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
+            <div className="space-y-4">
+              {companyStats.recentEvents.map((event, index) => (
+                <div key={event.id} className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-300 animate-slide-in" style={{ animationDelay: `${index * 0.1}s` }}>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-lg">{event.name}</div>
+                    {event.date && (
+                      <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full mt-1 inline-block">
+                        {new Date(event.date).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-bold text-gray-900">{event.checked_in_count}/{event.attendee_count}</div>
+                    <div className="text-xs text-gray-500">attendees</div>
+                    <div className="w-16 bg-gray-200 rounded-full h-2 mt-1">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${event.attendee_count > 0 ? (event.checked_in_count / event.attendee_count) * 100 : 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {companyStats.recentEvents.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No events yet</p>
+                  <Link 
+                    to="/admin/events" 
+                    className="text-green-600 hover:text-green-700 text-sm font-medium bg-green-50 px-4 py-2 rounded-lg hover:bg-green-100 transition-all duration-300 inline-block mt-2"
+                  >
+                    Create your first event
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Event Tools */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center">
+            <div className="p-2 bg-gradient-to-br from-pink-500 to-rose-500 rounded-lg mr-3">
+              <Target className="h-6 w-6 text-white" />
+            </div>
+            Event Tools & Monitors
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link
+              to="/admin/lucky-draw"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-yellow-300 hover:bg-gradient-to-br hover:from-yellow-50 hover:to-orange-50 transition-all duration-300 card-hover"
+            >
+              <div className="p-3 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <Gift className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Lucky Draw</div>
+              <div className="text-sm text-gray-600 mt-1">Random winner selection</div>
+            </Link>
+            <Link
+              to="/admin/welcome-monitor"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50 hover:to-cyan-50 transition-all duration-300 card-hover"
+            >
+              <div className="p-3 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <Monitor className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Welcome Monitor</div>
+              <div className="text-sm text-gray-600 mt-1">Live check-in display</div>
+            </Link>
+            <Link
+              to="/admin/voting-monitor"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-purple-300 hover:bg-gradient-to-br hover:from-purple-50 hover:to-pink-50 transition-all duration-300 card-hover"
+            >
+              <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <BarChart3 className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Voting Monitor</div>
+              <div className="text-sm text-gray-600 mt-1">Live voting results</div>
+            </Link>
+            <Link
+              to="/admin/progress"
+              className="group p-6 text-center border-2 border-gray-100 rounded-xl hover:border-green-300 hover:bg-gradient-to-br hover:from-green-50 hover:to-emerald-50 transition-all duration-300 card-hover"
+            >
+              <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl shadow-lg mx-auto mb-3 w-fit group-hover:scale-110 transition-transform duration-300">
+                <Award className="h-8 w-8 text-white" />
+              </div>
+              <div className="font-semibold text-gray-900">Analytics</div>
+              <div className="text-sm text-gray-600 mt-1">Performance insights</div>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Company User Dashboard
+  if (userCompany && companyStats) {
+    return (
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl shadow-lg">
+              <Star className="h-8 w-8 text-white" />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+            Welcome Back!
+          </h1>
+          <p className="text-gray-600 text-lg">
+            <span className="font-semibold text-indigo-600">{userCompany?.company?.name || 'Company'}</span> Dashboard
+          </p>
+        </div>
+
+        {/* Company Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
+            <div className="flex items-center">
+              <div className="p-3 bg-blue-600 rounded-lg mr-4">
+                <Calendar className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-gray-900">
+                  {companyStats.totalEvents}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Total Events</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
+            <div className="flex items-center">
+              <div className="p-3 bg-green-600 rounded-lg mr-4">
+                <Users className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-gray-900">
+                  {companyStats.totalAttendees}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Total Attendees</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
+            <div className="flex items-center">
+              <div className="p-3 bg-purple-600 rounded-lg mr-4">
+                <UserCheck className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-gray-900">
+                  {companyStats.totalCheckedIn}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Total Check-ins</div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {companyStats.totalAttendees > 0 
+                    ? `${Math.round((companyStats.totalCheckedIn / companyStats.totalAttendees) * 100)}% rate`
+                    : '0% rate'
+                  }
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md border p-6 card-hover">
+            <div className="flex items-center">
+              <div className="p-3 bg-orange-600 rounded-lg mr-4">
+                <TrendingUp className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-gray-900">
+                  {companyStats.upcomingEvents}
+                </div>
+                <div className="text-sm text-gray-600 font-medium">Upcoming Events</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Compact Calendar Section for Company Users */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold flex items-center">
+              <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg mr-3">
+                <Calendar className="h-6 w-6 text-white" />
+              </div>
+              Event Calendar
+            </h2>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))}
+                className="p-2 hover:bg-gray-100 rounded transition-colors"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <span className="text-base font-semibold">
+                {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </span>
+              <button
+                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))}
+                className="p-2 hover:bg-gray-100 rounded transition-colors"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-7 gap-1 mb-3">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+              <div key={day} className="p-2 text-center text-sm font-medium text-gray-600">
+                {day}
+              </div>
+            ))}
+          </div>
+          
+          <div className="grid grid-cols-7 gap-1">
+            {renderCalendar()}
+          </div>
+        </div>
 
         {/* Quick Actions and Recent Events */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

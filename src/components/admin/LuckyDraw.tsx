@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Gift, Play, RotateCcw, Users, Trophy, Sparkles, Table, Target } from 'lucide-react'
+import { Gift, Play, RotateCcw, Users, Trophy, Sparkles, Table, Target, CheckCircle } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
+import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 
@@ -31,6 +32,24 @@ interface CustomPrize {
   event_id: string
 }
 
+interface LuckyDrawWinner {
+  id: string
+  event_id: string
+  attendee_id?: string
+  winner_name: string
+  winner_company?: string
+  table_number?: number
+  is_table_winner: boolean
+  table_type?: string
+  prize_id?: string
+  prize_title?: string
+  prize_description?: string
+  prize_position?: number
+  draw_type: 'regular' | 'table' | 'custom'
+  draw_session_id: string
+  created_at: string
+}
+
 interface LuckyDrawProps {
   userCompany?: any
 }
@@ -38,6 +57,7 @@ interface LuckyDrawProps {
 type DrawType = 'table' | 'custom' | 'regular'
 
 export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -51,6 +71,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
   const [drawType, setDrawType] = useState<DrawType>('regular')
   const [selectedTable, setSelectedTable] = useState<number | null>(null)
   const [tables, setTables] = useState<{ table_number: number; table_type: string; capacity: number }[]>([])
+  const [selectedTableTypes, setSelectedTableTypes] = useState<string[]>([])
   const [customWinnerCount, setCustomWinnerCount] = useState<number>(5)
   const [customPrizes, setCustomPrizes] = useState<CustomPrize[]>([])
   const [isCustomDrawing, setIsCustomDrawing] = useState(false)
@@ -60,15 +81,35 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
   // Prize management
   const [showPrizeModal, setShowPrizeModal] = useState(false)
   const [editingPrize, setEditingPrize] = useState<Partial<CustomPrize> | null>(null)
+  
+  // Modified custom draw state
+  const [currentPrize, setCurrentPrize] = useState<CustomPrize | null>(null)
+  const [showPrizeFirst, setShowPrizeFirst] = useState(false)
+  const [drawSessionId, setDrawSessionId] = useState<string>('')
+  const [savedWinners, setSavedWinners] = useState<LuckyDrawWinner[]>([])
+  const [isSavingWinner, setIsSavingWinner] = useState(false)
+  const [showAllWinners, setShowAllWinners] = useState(false)
+  const [prizeDelay, setPrizeDelay] = useState(false)
+  const [isFirstCustomDraw, setIsFirstCustomDraw] = useState(true)
+  const [forceUpdate, setForceUpdate] = useState(0)
 
   useEffect(() => {
     fetchEvents()
   }, [])
 
+  // Handle eventId from URL parameters
+  useEffect(() => {
+    const eventIdFromUrl = searchParams.get('eventId')
+    if (eventIdFromUrl && events.length > 0) {
+      setSelectedEventId(eventIdFromUrl)
+    }
+  }, [searchParams, events])
+
   useEffect(() => {
     if (selectedEventId) {
       fetchAttendees()
       fetchCustomPrizes()
+      fetchSavedWinners()
     }
   }, [selectedEventId])
 
@@ -152,9 +193,36 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
     }
   }
 
+  const fetchSavedWinners = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('lucky_draw_winners')
+        .select('*')
+        .eq('event_id', selectedEventId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching saved winners:', error)
+        // If table doesn't exist yet, just set empty array
+        if (error.code === '42P01') { // Table doesn't exist
+          console.warn('Lucky draw winners table does not exist yet. Please run the migration.')
+          setSavedWinners([])
+          return
+        }
+        throw error
+      }
+      setSavedWinners(data || [])
+    } catch (error: any) {
+      console.error('Error fetching saved winners:', error)
+      setSavedWinners([])
+    }
+  }
+
   const getEligibleAttendees = () => {
+    // Filter out attendees with empty or null IDs
     let eligible = attendees.filter(
-      attendee => !previousWinners.find(winner => winner.id === attendee.id)
+      attendee => attendee.id && attendee.id.trim() !== '' && 
+      !previousWinners.find(winner => winner.id === attendee.id)
     )
 
     // Filter by table if table draw is selected
@@ -165,10 +233,24 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
     return eligible
   }
 
+  const getUniqueTableTypes = () => {
+    const types = [...new Set(tables.map(table => table.table_type))]
+    return types.sort()
+  }
+
+  const getFilteredTables = () => {
+    if (selectedTableTypes.length === 0) {
+      return tables
+    }
+    return tables.filter(table => selectedTableTypes.includes(table.table_type))
+  }
+
   const startDraw = () => {
     if (drawType === 'table') {
       startTableDraw()
     } else if (drawType === 'custom') {
+      // Reset the first draw flag when starting a new custom draw session
+      setIsFirstCustomDraw(true)
       startCustomDraw()
     } else {
       startRegularDraw()
@@ -176,8 +258,8 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
   }
 
   const startTableDraw = () => {
-    // Get all tables that haven't been won yet
-    const availableTables = tables.filter(table => 
+    // Get filtered tables that haven't been won yet
+    const availableTables = getFilteredTables().filter(table => 
       !previousWinners.find(w => w.id === `table-${table.table_number}`)
     )
     
@@ -266,12 +348,72 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
       return
     }
 
-    setIsCustomDrawing(true)
-    setCustomWinners([])
-    setCurrentCustomWinnerIndex(0)
+    // Generate new session ID for this draw
+    setDrawSessionId(crypto.randomUUID())
+    setShowAllWinners(false)
+    
+    // Show the current prize first
+    const position = customWinnerCount - currentCustomWinnerIndex
+    const prize = customPrizes.find(p => p.position === position)
+    
+    if (prize) {
+      setCurrentPrize(prize)
+      setShowPrizeFirst(true)
+      setPrizeDelay(false)
+      setIsCustomDrawing(false)
+    } else {
+      toast.error('No prize found for this position')
+    }
+  }
 
-    // Start drawing the first winner
-    drawNextCustomWinner()
+  const startDrawingAfterPrize = () => {
+    const eligibleAttendees = getEligibleAttendees()
+    const position = customWinnerCount - currentCustomWinnerIndex
+    
+    if (eligibleAttendees.length === 0) {
+      setIsCustomDrawing(false)
+      setCurrentCustomWinnerIndex(0)
+      setShowPrizeFirst(false)
+      setCurrentPrize(null)
+      toast.error('No more eligible attendees available')
+      return
+    }
+    
+    setIsCustomDrawing(true)
+    setShowPrizeFirst(false)
+    // Clear current name at the start of drawing
+    setCurrentName('')
+    
+    // Animate through random names
+    let counter = 0
+    const maxIterations = 20
+    const interval = setInterval(() => {
+      const randomAttendee = eligibleAttendees[Math.floor(Math.random() * eligibleAttendees.length)]
+      setCurrentName(randomAttendee.name)
+      
+      counter++
+      if (counter >= maxIterations) {
+        clearInterval(interval)
+        
+        // Select final winner
+        const finalWinner = eligibleAttendees[Math.floor(Math.random() * eligibleAttendees.length)]
+        setCurrentName(finalWinner.name)
+        
+        // Add winner to the list
+        const newWinners = [...customWinners, finalWinner]
+        setCustomWinners(newWinners)
+        
+        // Show prize information
+        if (currentPrize) {
+          toast.success(`🎉 ${finalWinner.name} wins ${currentPrize.title}!`)
+        } else {
+          toast.success(`🎉 ${finalWinner.name} wins!`)
+        }
+        
+        // Stop here and wait for confirmation
+        setIsCustomDrawing(false)
+      }
+    }, 100)
   }
 
   const drawNextCustomWinner = () => {
@@ -320,23 +462,156 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
     }, 100)
   }
 
-  const confirmWinner = () => {
+  const confirmWinner = async () => {
     if (winner) {
-      setPreviousWinners(prev => [...prev, winner])
-      setWinner(null)
-      setCurrentName('')
-      setSelectedTable(null)
-      setIsDrawing(false)
+      setIsSavingWinner(true)
+      
+      // For custom draws, get the current prize
+      let prize: CustomPrize | undefined
+      if (drawType === 'custom' && currentPrize) {
+        prize = currentPrize
+      }
+      
+      // Save winner to database
+      const success = await saveWinnerToDatabase(winner, prize)
+      
+      if (success) {
+        setPreviousWinners(prev => [...prev, winner])
+        
+        // Show success message first
+        toast.success('Winner saved successfully!')
+        
+        // For custom draws, move to next prize after a short delay
+        if (drawType === 'custom' && currentCustomWinnerIndex + 1 < customWinnerCount) {
+          setTimeout(() => {
+            setWinner(null)
+            setCurrentName('')
+            setSelectedTable(null)
+            setIsSavingWinner(false)
+            // Move to next prize
+            setCurrentCustomWinnerIndex(currentCustomWinnerIndex + 1)
+            const nextPosition = customWinnerCount - (currentCustomWinnerIndex + 1)
+            const nextPrize = customPrizes.find(p => p.position === nextPosition)
+            if (nextPrize) {
+              setCurrentPrize(nextPrize)
+              setShowPrizeFirst(true)
+            }
+          }, 2000) // Show winner for 2 seconds before moving to next prize
+        } else if (drawType === 'custom' && currentCustomWinnerIndex + 1 >= customWinnerCount) {
+          // All prizes drawn - show final winners display
+          setTimeout(() => {
+            setWinner(null)
+            setCurrentName('')
+            setSelectedTable(null)
+            setIsSavingWinner(false)
+            setShowAllWinners(true)
+          }, 2000)
+        } else {
+          // For regular draws, clear immediately
+          setWinner(null)
+          setCurrentName('')
+          setSelectedTable(null)
+          setIsSavingWinner(false)
+        }
+        
+        // Refresh saved winners
+        await fetchSavedWinners()
+      } else {
+        setIsSavingWinner(false)
+      }
     }
   }
 
-  const confirmCustomWinners = () => {
+  const saveWinnerToDatabase = async (winner: Attendee, prize?: CustomPrize) => {
+    try {
+      if (!selectedEventId) {
+        throw new Error('No event selected')
+      }
+
+      // Handle table winners differently - don't set attendee_id for table winners
+      const isTableWinner = winner.id?.startsWith('table-')
+      
+      const winnerData = {
+        event_id: selectedEventId,
+        attendee_id: isTableWinner ? null : winner.id, // Set to null for table winners
+        winner_name: winner.name || 'Unknown Winner', // Ensure winner name is always saved
+        winner_company: winner.company,
+        table_number: winner.table_number,
+        is_table_winner: isTableWinner,
+        table_type: isTableWinner ? 'Table' : undefined,
+        prize_id: prize?.id,
+        prize_title: prize?.title,
+        prize_description: prize?.description,
+        prize_position: prize?.position,
+        draw_type: drawType,
+        draw_session_id: drawSessionId || crypto.randomUUID()
+      }
+
+      console.log('Saving winner data:', winnerData)
+      console.log('Winner name to save:', winnerData.winner_name)
+      console.log('Is table winner:', isTableWinner)
+      console.log('Prize data being saved:', {
+        prize_id: winnerData.prize_id,
+        prize_title: winnerData.prize_title,
+        prize_description: winnerData.prize_description,
+        prize_position: winnerData.prize_position
+      })
+
+      const { data, error } = await supabase
+        .from('lucky_draw_winners')
+        .insert([winnerData])
+        .select()
+
+      if (error) {
+        console.error('Supabase error:', error)
+        // If table doesn't exist yet, just return true to avoid blocking the UI
+        if (error.code === '42P01') { // Table doesn't exist
+          console.warn('Lucky draw winners table does not exist yet')
+          return true
+        }
+        throw error
+      }
+
+      console.log('Winner saved successfully:', data)
+      console.log('Saved winner name:', data?.[0]?.winner_name)
+      return true
+    } catch (error: any) {
+      console.error('Error saving winner:', error)
+      toast.error('Error saving winner: ' + (error.message || 'Unknown error'))
+      return false
+    }
+  }
+
+  const confirmCustomWinners = async () => {
     if (customWinners.length > 0) {
-      setPreviousWinners(prev => [...prev, ...customWinners])
-      setCustomWinners([])
-      setCurrentCustomWinnerIndex(0)
-      setIsCustomDrawing(false)
-      setCurrentName('')
+      // Save all winners to database
+      const savePromises = customWinners.map((winner, index) => {
+        const position = customWinnerCount - index
+        const prize = customPrizes.find(p => p.position === position)
+        return saveWinnerToDatabase(winner, prize)
+      })
+
+      const results = await Promise.all(savePromises)
+      
+      if (results.every(result => result)) {
+        setPreviousWinners(prev => [...prev, ...customWinners])
+        setCustomWinners([])
+        setCurrentCustomWinnerIndex(0)
+        setCurrentName('')
+        
+        // Move to next prize if there are more to draw
+        if (currentCustomWinnerIndex + 1 < customWinnerCount) {
+          continueCustomDraw()
+        } else {
+          // All prizes drawn
+          setCurrentPrize(null)
+          setShowPrizeFirst(false)
+          toast.success('All winners saved successfully!')
+        }
+        
+        // Refresh saved winners
+        await fetchSavedWinners()
+      }
     }
   }
 
@@ -344,18 +619,134 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
     if (currentCustomWinnerIndex + 1 < customWinnerCount) {
       setCurrentCustomWinnerIndex(currentCustomWinnerIndex + 1)
       setCurrentName('')
-      setIsCustomDrawing(true)
-      drawNextCustomWinner()
+      
+      // Show the next prize
+      const position = customWinnerCount - (currentCustomWinnerIndex + 1)
+      const prize = customPrizes.find(p => p.position === position)
+      
+      if (prize) {
+        setCurrentPrize(prize)
+        setShowPrizeFirst(true)
+        // Don't reset isCustomDrawing - it will be set when drawing starts
+      } else {
+        toast.error('No prize found for this position')
+      }
     } else {
       // All winners drawn
       setCurrentName('')
-      setIsCustomDrawing(false)
       setCurrentCustomWinnerIndex(0)
+      setCurrentPrize(null)
+      setShowPrizeFirst(false)
+      setShowAllWinners(true)
       toast.success(`🎉 All ${customWinnerCount} winners selected with prizes!`)
     }
   }
 
+  const drawAgain = () => {
+    // Skip current winner and draw again for the same prize
+    setWinner(null)
+    setCurrentName('')
+    setSelectedTable(null)
+    setIsCustomDrawing(true)
+    
+    // For custom draws, remove the last winner from both lists and redraw the same prize
+    if (drawType === 'custom') {
+      // Remove the last winner from customWinners list and force immediate update
+      setCustomWinners(prev => {
+        const newList = prev.slice(0, -1)
+        console.log('Removed last winner, new list:', newList.map(w => w.name))
+        return newList
+      })
+      // Remove the last winner from previousWinners list (only custom winners)
+      setPreviousWinners(prev => {
+        const nonTableWinners = prev.filter(w => !w.id?.startsWith('table-'))
+        const tableWinners = prev.filter(w => w.id?.startsWith('table-'))
+        const newList = [...tableWinners, ...nonTableWinners.slice(0, -1)]
+        console.log('Updated previousWinners:', newList.map(w => w.name))
+        return newList
+      })
+      // Clear any remaining winner state
+      setWinner(null)
+      setCurrentName('')
+      setIsSavingWinner(false)
+      // Force UI update
+      setForceUpdate(prev => prev + 1)
+      // Clear current name and start drawing with a small delay to ensure UI updates
+      setTimeout(() => {
+        setCurrentName('')
+        startDrawingAfterPrize()
+      }, 50)
+    } else {
+      // For regular and table draws, just redraw without removing from lists
+      startDrawingAfterPrize()
+    }
+  }
+
   const resetDraw = () => {
+    setWinner(null)
+    setCurrentName('')
+    setIsDrawing(false)
+    
+    // Reset winners based on current draw type
+    if (drawType === 'table') {
+      // For table draws, only clear table winners
+      setPreviousWinners(prev => prev.filter(w => !w.id?.startsWith('table-')))
+    } else if (drawType === 'custom') {
+      // For custom draws, only clear custom winners (non-table winners)
+      setPreviousWinners(prev => prev.filter(w => w.id?.startsWith('table-')))
+      setCustomWinners([])
+      setCurrentCustomWinnerIndex(0)
+      setCurrentPrize(null)
+      setShowPrizeFirst(false)
+    } else {
+      // For regular draws, only clear regular winners (non-table winners)
+      setPreviousWinners(prev => prev.filter(w => w.id?.startsWith('table-')))
+    }
+    
+    setIsCustomDrawing(false)
+    setSelectedTable(null)
+    setCurrentPrize(null)
+    setShowPrizeFirst(false)
+    setDrawSessionId('')
+    setIsSavingWinner(false)
+    setShowAllWinners(false)
+    setPrizeDelay(false)
+    setSelectedTableTypes([])
+    setIsFirstCustomDraw(true)
+  }
+
+  const resetWinners = async () => {
+    // Clear all winners (both session and saved)
+    setPreviousWinners([])
+    setCustomWinners([])
+    setCurrentCustomWinnerIndex(0)
+    setWinner(null)
+    setCurrentName('')
+    
+    // Clear saved winners from database
+    try {
+      if (selectedEventId) {
+        const { error } = await supabase
+          .from('lucky_draw_winners')
+          .delete()
+          .eq('event_id', selectedEventId)
+        
+        if (error) {
+          console.error('Error clearing saved winners:', error)
+          toast.error('Error clearing saved winners')
+        } else {
+          setSavedWinners([])
+          toast.success('All winners cleared successfully!')
+        }
+      }
+    } catch (error: any) {
+      console.error('Error clearing winners:', error)
+      toast.error('Error clearing winners: ' + error.message)
+    }
+  }
+
+  const resetEverything = async () => {
+    // Reset all state to default
     setWinner(null)
     setCurrentName('')
     setIsDrawing(false)
@@ -364,6 +755,56 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
     setIsCustomDrawing(false)
     setCurrentCustomWinnerIndex(0)
     setSelectedTable(null)
+    setCurrentPrize(null)
+    setShowPrizeFirst(false)
+    setDrawSessionId('')
+    setIsSavingWinner(false)
+    setShowAllWinners(false)
+    setPrizeDelay(false)
+    setSelectedTableTypes([])
+    setIsFirstCustomDraw(true)
+    setDrawType('regular')
+    setCustomWinnerCount(5)
+    setCurrentPrize(null)
+    setShowPrizeFirst(false)
+    
+    // Clear saved winners from database
+    try {
+      if (selectedEventId) {
+        const { error } = await supabase
+          .from('lucky_draw_winners')
+          .delete()
+          .eq('event_id', selectedEventId)
+        
+        if (error) {
+          console.error('Error clearing saved winners:', error)
+        } else {
+          setSavedWinners([])
+        }
+      }
+    } catch (error: any) {
+      console.error('Error clearing winners:', error)
+    }
+    
+    // Clear custom prizes
+    try {
+      if (selectedEventId) {
+        const { error } = await supabase
+          .from('custom_prizes')
+          .delete()
+          .eq('event_id', selectedEventId)
+        
+        if (error) {
+          console.error('Error clearing prizes:', error)
+        } else {
+          setCustomPrizes([])
+        }
+      }
+    } catch (error: any) {
+      console.error('Error clearing prizes:', error)
+    }
+    
+    toast.success('Everything reset to default!')
   }
 
   const toggleFullscreen = () => {
@@ -556,27 +997,55 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
       <div className="fixed inset-0 z-50">
         <div className="h-full flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-600">
           <div className="text-center text-white z-10">
-            <AnimatePresence mode="wait">
-              {!isDrawing && !winner && !isCustomDrawing && customWinners.length === 0 && (
+            <AnimatePresence>
+              {prizeDelay && (
                 <motion.div
+                  key="prize-delay"
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   className="space-y-8"
                 >
-                  <Gift className="h-32 w-32 mx-auto mb-8" />
-                  <h1 className="text-6xl md:text-8xl font-bold mb-4">Lucky Draw</h1>
-                  <p className="text-2xl md:text-3xl opacity-80">
-                    {drawType === 'table' ? 'Random Table Selection' :
-                     drawType === 'custom' ? `Custom Draw (${customWinnerCount} winners)` :
-                     drawType === 'regular' ? 'Single Winner Selection' :
-                     'Ready to pick a winner?'}
-                  </p>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Sparkles className="h-32 w-32 mx-auto mb-8" />
+                  </motion.div>
+                  <h1 className="text-6xl md:text-8xl font-bold mb-4">Preparing Prize</h1>
+                  <div className="text-2xl md:text-3xl opacity-80">
+                    Loading prize information...
+                  </div>
                 </motion.div>
               )}
 
-              {(isDrawing || isCustomDrawing) && (
+              {showPrizeFirst && currentPrize && !prizeDelay && (
                 <motion.div
+                  key="show-prize-first"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="space-y-8"
+                >
+                  <Trophy className="h-32 w-32 mx-auto mb-8 text-yellow-300" />
+                  <h1 className="text-6xl md:text-8xl font-bold mb-4">Prize #{currentPrize.position}</h1>
+                  <div className="text-4xl md:text-6xl font-bold bg-white bg-opacity-20 rounded-lg p-8">
+                    {currentPrize.title}
+                  </div>
+                  {currentPrize.description && (
+                    <div className="text-2xl md:text-3xl opacity-80">
+                      {currentPrize.description}
+                    </div>
+                  )}
+                  <div className="text-xl md:text-2xl opacity-80">
+                    Position #{currentPrize.position} • {customWinnerCount - currentCustomWinnerIndex} of {customWinnerCount} winners
+                  </div>
+                </motion.div>
+              )}
+
+              {(isDrawing || isCustomDrawing) && !prizeDelay && !showPrizeFirst && (
+                <motion.div
+                  key="drawing"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -605,7 +1074,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                     </motion.div>
                   )}
                   <motion.div
-                    key={currentName}
+                    key={`drawing-${Date.now()}-${currentName}`}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     className="text-3xl md:text-5xl font-semibold bg-white bg-opacity-20 rounded-lg p-6"
@@ -614,6 +1083,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                   </motion.div>
                   {isCustomDrawing && customWinners.length > 0 && (
                     <motion.div
+                      key={`previous-winners-${customWinners.length}-${forceUpdate}`}
                       initial={{ y: 20, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       className="text-xl md:text-2xl opacity-80"
@@ -624,13 +1094,24 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                 </motion.div>
               )}
 
-              {winner && (
+              {winner && !prizeDelay && !showPrizeFirst && !isDrawing && !isCustomDrawing && (
                 <motion.div
+                  key="winner"
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="space-y-8"
                 >
+                  {isSavingWinner && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="absolute top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                    >
+                      <CheckCircle className="h-5 w-5" />
+                      <span>Saving winner...</span>
+                    </motion.div>
+                  )}
                   <motion.div
                     animate={{ 
                       scale: [1, 1.2, 1],
@@ -650,9 +1131,21 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                   <motion.div
                     initial={{ y: 20 }}
                     animate={{ y: 0 }}
-                    className="text-4xl md:text-6xl font-bold bg-white bg-opacity-20 rounded-lg p-8"
+                    className="text-6xl md:text-8xl lg:text-9xl font-bold bg-white bg-opacity-20 rounded-lg p-12"
                   >
                     {winner.name}
+                  </motion.div>
+                  
+                  {/* Draw type indicator */}
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-xl md:text-2xl opacity-80"
+                  >
+                    {drawType === 'custom' ? 'Custom Draw' : 
+                     drawType === 'table' ? 'Table Draw' : 
+                     'Regular Draw'}
                   </motion.div>
                   {winner.company && !winner.id?.startsWith('table-') && (
                     <motion.div
@@ -674,11 +1167,90 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                       Table {winner.table_number}
                     </motion.div>
                   )}
+                  
+                  {/* Show prize information for custom draws */}
+                  {drawType === 'custom' && currentPrize && !winner.id?.startsWith('table-') && (
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.9 }}
+                      className="text-2xl md:text-3xl opacity-80 bg-yellow-500 bg-opacity-20 rounded-lg p-4"
+                    >
+                      🎁 {currentPrize.title}
+                      {currentPrize.description && (
+                        <div className="text-lg opacity-80 mt-2">
+                          {currentPrize.description}
+                        </div>
+                      )}
+                      <div className="text-lg opacity-80 mt-1">
+                        Position #{currentPrize.position}
+                      </div>
+                    </motion.div>
+                  )}
                 </motion.div>
               )}
 
-              {customWinners.length > 0 && (
+              {showAllWinners && previousWinners.length > 0 && !prizeDelay && !showPrizeFirst && !isDrawing && !isCustomDrawing && !winner && (
                 <motion.div
+                  key="all-winners"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-8"
+                >
+                  <motion.div
+                    animate={{ 
+                      scale: [1, 1.2, 1],
+                      rotate: [0, 10, -10, 0]
+                    }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    <Trophy className="h-32 w-32 mx-auto mb-8 text-yellow-300" />
+                  </motion.div>
+                  <motion.h1 
+                    className="text-4xl md:text-6xl font-bold mb-4"
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    🎉 ALL WINNERS! 🎉
+                  </motion.h1>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+                    {previousWinners.map((winner, index) => {
+                      const position = index + 1
+                      const prize = customPrizes.find(p => p.position === position)
+                      
+                      return (
+                        <motion.div
+                          key={`previous-winner-${winner.id}-${position}-${index}`}
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ delay: index * 0.2 }}
+                          className="text-2xl md:text-3xl font-bold bg-white bg-opacity-20 rounded-lg p-6 relative"
+                        >
+                          <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                            {position}
+                          </div>
+                          <div className="text-center">
+                            <div className="mb-2">{winner.name}</div>
+                            {prize && (
+                              <div className="text-sm opacity-80">
+                                🎁 {prize.title}
+                                {prize.description && (
+                                  <div className="text-xs mt-1">{prize.description}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {customWinners.length > 0 && !showAllWinners && !prizeDelay && !showPrizeFirst && !isDrawing && !isCustomDrawing && !winner && (
+                <motion.div
+                  key="custom-winners"
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -707,11 +1279,11 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                       
                       return (
                         <motion.div
-                          key={winner.id}
+                          key={`custom-winner-${winner.id}-${position}-${index}`}
                           initial={{ y: 20, opacity: 0 }}
                           animate={{ y: 0, opacity: 1 }}
                           transition={{ delay: index * 0.2 }}
-                          className="text-2xl md:text-3xl font-bold bg-white bg-opacity-20 rounded-lg p-4 relative"
+                          className="text-3xl md:text-4xl lg:text-5xl font-bold bg-white bg-opacity-20 rounded-lg p-6 relative"
                         >
                           <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
                             {position}
@@ -733,11 +1305,30 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                   </div>
                 </motion.div>
               )}
+
+              {!prizeDelay && !showPrizeFirst && !isDrawing && !isCustomDrawing && !winner && !showAllWinners && customWinners.length === 0 && (
+                <motion.div
+                  key="lucky-draw-ready"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  className="space-y-8"
+                >
+                  <Gift className="h-32 w-32 mx-auto mb-8" />
+                  <h1 className="text-6xl md:text-8xl font-bold mb-4">Lucky Draw</h1>
+                  <p className="text-2xl md:text-3xl opacity-80">
+                    {drawType === 'table' ? 'Random Table Selection' :
+                     drawType === 'custom' ? `Custom Draw (${customWinnerCount} winners)` :
+                     drawType === 'regular' ? 'Single Winner Selection' :
+                     'Ready to pick a winner?'}
+                  </p>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-4">
-          {!isDrawing && !winner && !isCustomDrawing && customWinners.length === 0 && (
+          {!isDrawing && !winner && !isCustomDrawing && customWinners.length === 0 && !showPrizeFirst && (
             <button
               onClick={startDraw}
               className="bg-white text-purple-600 px-8 py-4 rounded-lg font-bold text-xl hover:bg-gray-100 transition-colors"
@@ -745,22 +1336,31 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
               Start {drawType === 'table' ? 'Table' : drawType === 'custom' ? 'Custom' : 'Regular'} Draw
             </button>
           )}
-          {winner && (
-            <>
-              <button
-                onClick={confirmWinner}
-                className="bg-green-600 text-white px-8 py-4 rounded-lg font-bold text-xl hover:bg-green-700 transition-colors"
-              >
-                Confirm Winner
-              </button>
-              <button
-                onClick={startDraw}
-                className="bg-blue-600 text-white px-8 py-4 rounded-lg font-bold text-xl hover:bg-blue-700 transition-colors"
-              >
-                Draw Again
-              </button>
-            </>
+          
+          {showPrizeFirst && currentPrize && (
+            <button
+              onClick={startDrawingAfterPrize}
+              className="bg-white text-purple-600 px-8 py-4 rounded-lg font-bold text-xl hover:bg-gray-100 transition-colors"
+            >
+              Start Drawing
+            </button>
           )}
+                  {winner && (
+          <>
+            <button
+              onClick={confirmWinner}
+              className="bg-green-600 text-white px-8 py-4 rounded-lg font-bold text-xl hover:bg-green-700 transition-colors"
+            >
+              Confirm Winner
+            </button>
+            <button
+              onClick={drawAgain}
+              className="bg-blue-600 text-white px-8 py-4 rounded-lg font-bold text-xl hover:bg-blue-700 transition-colors"
+            >
+              Redraw
+            </button>
+          </>
+        )}
           {customWinners.length > 0 && !isCustomDrawing && (
             <>
               <button
@@ -778,10 +1378,10 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                 </button>
               )}
               <button
-                onClick={startDraw}
+                onClick={drawAgain}
                 className="bg-purple-600 text-white px-8 py-4 rounded-lg font-bold text-xl hover:bg-purple-700 transition-colors"
               >
-                Draw Again
+                Redraw
               </button>
             </>
           )}
@@ -813,8 +1413,10 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
         </button>
       </div>
 
-      {/* Draw Controls Section */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      {/* Main Layout: Controls on Left, Preview on Right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Draw Controls Section - Left Side */}
+        <div className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4 flex items-center">
           <Gift className="h-6 w-6 mr-2" />
           Draw Controls
@@ -839,7 +1441,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
               >
                 {!userCompany && <option value="">Select an event</option>}
                 {events.map((event) => (
-                  <option key={event.id} value={event.id}>
+                  <option key={`event-${event.id}`} value={event.id}>
                     {userCompany ? event.name : `${event.name} (${event.company.name})`}
                   </option>
                 ))}
@@ -890,6 +1492,43 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
             </div>
           </div>
 
+          {/* Table Type Selection */}
+          {drawType === 'table' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Table Types to Include</label>
+              <div className="space-y-2">
+                {getUniqueTableTypes().map((tableType, index) => (
+                  <label key={`table-type-${tableType}-${index}`} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedTableTypes.includes(tableType)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedTableTypes([...selectedTableTypes, tableType])
+                        } else {
+                          setSelectedTableTypes(selectedTableTypes.filter(type => type !== tableType))
+                        }
+                      }}
+                      className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-sm text-gray-700">{tableType}</span>
+                    <span className="text-xs text-gray-500">
+                      ({tables.filter(t => t.table_type === tableType).length} tables)
+                    </span>
+                  </label>
+                ))}
+                {getUniqueTableTypes().length === 0 && (
+                  <p className="text-xs text-gray-500">No table types found</p>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedTableTypes.length === 0 
+                  ? 'All table types will be included' 
+                  : `${getFilteredTables().length} tables selected`}
+              </p>
+            </div>
+          )}
+
           {/* Custom Winner Count */}
           {drawType === 'custom' && (
             <div>
@@ -926,7 +1565,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
               </div>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {customPrizes.map((prize) => (
-                  <div key={prize.id} className="border border-gray-200 rounded-lg p-2">
+                  <div key={`prize-${prize.id}`} className="border border-gray-200 rounded-lg p-2">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
@@ -972,11 +1611,13 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
             <div className="bg-purple-50 rounded-lg p-4">
               <div className="flex items-center text-purple-700 mb-2">
                 <Users className="h-5 w-5 mr-2" />
-                <span className="font-medium">Eligible Participants</span>
+                <span className="font-medium">
+                  {drawType === 'table' ? 'Available Tables' : 'Eligible Participants'}
+                </span>
               </div>
               <div className="text-2xl font-bold text-purple-900">
                 {drawType === 'table' 
-                  ? tables.filter(table => 
+                  ? getFilteredTables().filter(table => 
                       !previousWinners.find(w => w.id === `table-${table.table_number}`)
                     ).length
                   : drawType === 'custom'
@@ -986,9 +1627,14 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
               </div>
               <div className="text-sm text-purple-600">
                 {drawType === 'table' ? (
-                  <span>{tables.filter(table => 
-                    !previousWinners.find(w => w.id === `table-${table.table_number}`)
-                  ).length} available tables • {previousWinners.filter(w => w.id?.startsWith('table-')).length} tables already won</span>
+                  <span>
+                    {getFilteredTables().filter(table => 
+                      !previousWinners.find(w => w.id === `table-${table.table_number}`)
+                    ).length} available tables • {previousWinners.filter(w => w.id?.startsWith('table-')).length} tables already won
+                    {selectedTableTypes.length > 0 && (
+                      <span> • {selectedTableTypes.join(', ')} types selected</span>
+                    )}
+                  </span>
                 ) : drawType === 'custom' ? (
                   <span>{attendees.length} total checked-in • {previousWinners.filter(w => !w.id?.startsWith('table-')).length} already won • {customWinnerCount} winners with prizes • {customPrizes.length} prizes configured</span>
                 ) : (
@@ -1002,9 +1648,9 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
             <button
               type="button"
               onClick={startDraw}
-              disabled={!selectedEventId || isDrawing || isCustomDrawing || 
+              disabled={!selectedEventId || isDrawing || isCustomDrawing || showPrizeFirst || 
                 (drawType === 'table' 
-                  ? tables.filter(table => 
+                  ? getFilteredTables().filter(table => 
                       !previousWinners.find(w => w.id === `table-${table.table_number}`)
                     ).length === 0
                   : drawType === 'custom'
@@ -1018,14 +1664,34 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
               {isDrawing || isCustomDrawing ? 'Drawing...' : 'Start Lucky Draw'}
             </button>
 
-            {winner && (
+            {showPrizeFirst && currentPrize && (
               <button
                 type="button"
-                onClick={confirmWinner}
-                className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                onClick={startDrawingAfterPrize}
+                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
               >
-                Confirm Winner
+                <Play className="h-5 w-5 mr-2" />
+                Start Drawing for Prize #{currentPrize.position}
               </button>
+            )}
+
+            {winner && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={confirmWinner}
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Confirm Winner
+                </button>
+                <button
+                  type="button"
+                  onClick={drawAgain}
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Redraw
+                </button>
+              </div>
             )}
 
             {customWinners.length > 0 && !isCustomDrawing && (
@@ -1049,21 +1715,36 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={resetDraw}
-              className="w-full bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center"
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Reset All
-            </button>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={resetDraw}
+                className="bg-gray-600 text-white py-1 px-2 rounded text-xs hover:bg-gray-700 transition-colors flex items-center justify-center"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Current
+              </button>
+              <button
+                type="button"
+                onClick={resetWinners}
+                className="bg-orange-600 text-white py-1 px-2 rounded text-xs hover:bg-orange-700 transition-colors flex items-center justify-center"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Winners
+              </button>
+              <button
+                type="button"
+                onClick={resetEverything}
+                className="bg-red-600 text-white py-1 px-2 rounded text-xs hover:bg-red-700 transition-colors flex items-center justify-center"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                All
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Preview Section */}
-      {!showPrizeModal && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+              {/* Preview Section - Right Side */}
+        <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Play className="h-6 w-6 mr-2" />
             Preview
@@ -1071,7 +1752,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
           
           <div className="bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-600 rounded-lg p-8 text-center text-white min-h-[400px] flex items-center justify-center">
             <div className="space-y-6">
-              {!isDrawing && !winner && !isCustomDrawing && customWinners.length === 0 && (
+              {!isDrawing && !winner && !isCustomDrawing && customWinners.length === 0 && !showPrizeFirst && (
                 <div>
                   <Gift className="h-24 w-24 mx-auto mb-6" />
                   <h1 className="text-4xl font-bold mb-4">Lucky Draw</h1>
@@ -1080,6 +1761,24 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                      drawType === 'custom' ? `Custom Draw (${customWinnerCount} winners)` :
                      'Ready to pick a winner?'}
                   </p>
+                </div>
+              )}
+
+              {showPrizeFirst && currentPrize && (
+                <div>
+                  <Trophy className="h-24 w-24 mx-auto mb-6 text-yellow-300" />
+                  <h1 className="text-3xl font-bold mb-4">Prize #{currentPrize.position}</h1>
+                  <div className="text-2xl font-bold bg-white bg-opacity-20 rounded-lg p-4 mb-4">
+                    {currentPrize.title}
+                  </div>
+                  {currentPrize.description && (
+                    <div className="text-lg opacity-80 mb-2">
+                      {currentPrize.description}
+                    </div>
+                  )}
+                  <div className="text-sm opacity-80">
+                    Position #{currentPrize.position} • {customWinnerCount - currentCustomWinnerIndex} of {customWinnerCount} winners
+                  </div>
                 </div>
               )}
 
@@ -1104,7 +1803,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                     {currentName}
                   </div>
                   {isCustomDrawing && customWinners.length > 0 && (
-                    <div className="text-lg opacity-80 mt-4">
+                    <div key={`main-previous-winners-${customWinners.length}-${forceUpdate}`} className="text-lg opacity-80 mt-4">
                       Previous Winners: {customWinners.map(w => w.name).join(', ')}
                     </div>
                   )}
@@ -1119,7 +1818,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                   <h1 className="text-3xl font-bold mb-4">
                     🎉 {winner.id?.startsWith('table-') ? 'TABLE WINNER!' : 'WINNER!'} 🎉
                   </h1>
-                  <div className="text-3xl font-bold bg-white bg-opacity-20 rounded-lg p-6">
+                  <div className="text-4xl md:text-5xl font-bold bg-white bg-opacity-20 rounded-lg p-8">
                     {winner.name}
                   </div>
                   {winner.company && !winner.id?.startsWith('table-') && (
@@ -1147,7 +1846,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                       const prize = customPrizes.find(p => p.position === position)
                       
                       return (
-                        <div key={winner.id} className="text-lg font-bold bg-white bg-opacity-20 rounded-lg p-3 relative">
+                        <div key={`preview-winner-${winner.id}-${position}-${index}`} className="text-xl md:text-2xl font-bold bg-white bg-opacity-20 rounded-lg p-4 relative">
                           <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
                             {position}
                           </div>
@@ -1168,25 +1867,77 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Winner Lists - Bottom Section */}
+      <div className="space-y-6">
+        {/* Saved Winners from Database */}
+        {savedWinners.length > 0 && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <Trophy className="h-6 w-6 mr-2 text-yellow-500" />
+            Saved Winners
+          </h2>
+          <div className="space-y-2">
+            {savedWinners.map((winner, index) => {
+              const isTableWinner = winner.is_table_winner
+              
+              return (
+                <div key={`saved-winner-${winner.id}-${index}`} className="flex items-center p-3 bg-yellow-50 rounded-lg">
+                  <div className="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">{winner.winner_name}</div>
+                    {winner.winner_company && !isTableWinner && (
+                      <div className="text-sm text-gray-600">{winner.winner_company}</div>
+                    )}
+                    {winner.table_number && !isTableWinner && (
+                      <div className="text-sm text-gray-600">Table {winner.table_number}</div>
+                    )}
+                    {isTableWinner && (
+                      <div className="text-sm text-blue-600 font-medium">🏆 Table Winner</div>
+                    )}
+                    {winner.prize_title && !isTableWinner && (
+                      <div className="mt-2 p-2 bg-purple-50 rounded border-l-4 border-purple-400">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-purple-600 font-medium">🎁</span>
+                          <span className="text-sm font-medium text-purple-900">{winner.prize_title}</span>
+                        </div>
+                        {winner.prize_description && (
+                          <div className="text-xs text-purple-700 mt-1">{winner.prize_description}</div>
+                        )}
+                        <div className="text-xs text-purple-600 mt-1">Position #{winner.prize_position}</div>
+                      </div>
+                    )}
+                    <div className="text-xs text-gray-500 mt-1">
+                      {winner.draw_type} • {new Date(winner.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
 
-      {/* Previous Winners */}
+      {/* Previous Winners (Session) */}
       {previousWinners.length > 0 && (
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4 flex items-center">
             <Trophy className="h-6 w-6 mr-2 text-yellow-500" />
-            Previous Winners
+            Current Session Winners
           </h2>
           <div className="space-y-2">
-            {[...previousWinners].reverse().map((winner, index) => {
-              const winnerIndex = previousWinners.length - index - 1
-              const prize = customPrizes.find(p => p.position === winnerIndex + 1)
+            {previousWinners.map((winner, index) => {
+              const winnerIndex = index + 1
+              const prize = customPrizes.find(p => p.position === winnerIndex)
               const isTableWinner = winner.id?.startsWith('table-')
               
               return (
-                <div key={winner.id} className="flex items-center p-3 bg-yellow-50 rounded-lg">
+                <div key={`session-winner-${winner.id}-${index}`} className="flex items-center p-3 bg-yellow-50 rounded-lg">
                   <div className="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">
-                    {previousWinners.length - index}
+                    {index + 1}
                   </div>
                   <div className="flex-1">
                     <div className="font-medium text-gray-900">{winner.name}</div>
@@ -1208,6 +1959,7 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
                         {prize.description && (
                           <div className="text-xs text-purple-700 mt-1">{prize.description}</div>
                         )}
+                        <div className="text-xs text-purple-600 mt-1">Position #{prize.position}</div>
                       </div>
                     )}
                   </div>
@@ -1217,6 +1969,9 @@ export default function LuckyDraw({ userCompany }: LuckyDrawProps) {
           </div>
         </div>
       )}
+
+        </div>
+      </div>
 
       {/* Custom Prize Modal */}
       <CustomPrizeModal />

@@ -3,6 +3,7 @@ import { MapPin, Plus, Users, Edit, Trash2, Save, Shuffle } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import VenueLayout from './VenueLayout'
+import { useSearchParams } from 'react-router-dom'
 
 interface Event {
   id: string
@@ -34,6 +35,7 @@ interface SeatingArrangementProps {
 }
 
 export default function SeatingArrangement({ userCompany }: SeatingArrangementProps) {
+  const [searchParams] = useSearchParams()
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState('')
   const [tables, setTables] = useState<Table[]>([])
@@ -60,6 +62,14 @@ export default function SeatingArrangement({ userCompany }: SeatingArrangementPr
   useEffect(() => {
     fetchEvents()
   }, [])
+
+  // Handle eventId from URL parameters
+  useEffect(() => {
+    const eventIdFromUrl = searchParams.get('eventId')
+    if (eventIdFromUrl && events.length > 0) {
+      setSelectedEventId(eventIdFromUrl)
+    }
+  }, [searchParams, events])
 
   useEffect(() => {
     console.log('Selected event changed:', selectedEventId)
