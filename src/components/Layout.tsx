@@ -3,7 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Building2, Calendar, Users, QrCode, Monitor, Gift, Image, MapPin, BarChart3, Vote, Sparkles, Menu, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useGlobalModeStore, HybridMode } from '../lib/globalModeStore';
+import { useOfflineAuthStore } from '../lib/offlineAuthStore'
 import GlobalSearch from './admin/GlobalSearch'
+
 
 interface LayoutProps {
   children: React.ReactNode
@@ -18,26 +20,35 @@ const navigation = [
   { name: 'Dashboard', href: '/admin', icon: BarChart3, color: 'from-purple-500 to-pink-500' },
   { name: 'Companies', href: '/admin/companies', icon: Building2, color: 'from-blue-500 to-cyan-500' },
   { name: 'Events', href: '/admin/events', icon: Calendar, color: 'from-green-500 to-emerald-500' },
-  { name: 'Attendees', href: '/admin/attendees', icon: Users, color: 'from-orange-500 to-red-500' },
-  { name: 'Check-in', href: '/admin/checkin', icon: QrCode, color: 'from-indigo-500 to-purple-500' },
   { name: 'QR Generator', href: '/admin/qr-generator', icon: QrCode, color: 'from-emerald-500 to-green-500' },
   { name: 'Seating', href: '/admin/seating', icon: MapPin, color: 'from-pink-500 to-rose-500' },
+  { name: 'Attendees', href: '/admin/attendees', icon: Users, color: 'from-orange-500 to-red-500' },
+  { name: 'Check-in', href: '/admin/checkin', icon: QrCode, color: 'from-indigo-500 to-purple-500' },
+  { name: 'Welcome Monitor', href: '/admin/welcome-monitor', icon: Monitor, color: 'from-blue-500 to-indigo-500' },
+  { name: 'Welcome Scanner', href: '/admin/welcome-monitor-scanner', icon: Monitor, color: 'from-green-500 to-blue-500' },
   { name: 'Voting', href: '/admin/voting', icon: Vote, color: 'from-violet-500 to-purple-500' },
+  { name: 'Voting Monitor', href: '/admin/voting-monitor', icon: Monitor, color: 'from-purple-500 to-indigo-500' },
   { name: 'Lucky Draw', href: '/admin/lucky-draw', icon: Gift, color: 'from-yellow-500 to-orange-500' },
   { name: 'Gallery', href: '/admin/gallery', icon: Image, color: 'from-teal-500 to-cyan-500' },
-  { name: 'Welcome Monitor', href: '/admin/welcome-monitor', icon: Monitor, color: 'from-blue-500 to-indigo-500' },
-  { name: 'Voting Monitor', href: '/admin/voting-monitor', icon: Monitor, color: 'from-purple-500 to-indigo-500' },
+  
+ 
 ]
 
 export default function Layout({ children, userCompany }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
   const { mode, setMode } = useGlobalModeStore();
+  const { currentUser: offlineUser, logoutOffline } = useOfflineAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    navigate('/')
+    if (offlineUser) {
+      logoutOffline()
+      navigate('/')
+    } else {
+      await supabase.auth.signOut()
+      navigate('/')
+    }
   }
 
   const closeSidebar = () => {
@@ -69,6 +80,11 @@ export default function Layout({ children, userCompany }: LayoutProps) {
                 </a>
                 {userCompany && (
                   <p className="text-xs text-blue-100 truncate font-medium">{userCompany.company.name}</p>
+                )}
+                {offlineUser && (
+                  <p className="text-xs text-blue-100 truncate font-medium">
+                    {offlineUser.name} ({offlineUser.type})
+                  </p>
                 )}
                 <h6 className="text-xs text-blue-100 truncate font-small">powered by <i>sangtenuk</i></h6>
               </div>
@@ -109,6 +125,19 @@ export default function Layout({ children, userCompany }: LayoutProps) {
             {navigation.filter(item => {
               // Hide Companies link for company users
               if (userCompany && item.href === '/admin/companies') return false
+              
+              // Filter based on offline user type
+              if (offlineUser) {
+                if (offlineUser.type === 'guest') {
+                  // Guest users only see basic features
+                  return ['/admin', '/admin/attendees', '/admin/checkin'].includes(item.href)
+                } else if (offlineUser.type === 'admin') {
+                  // Admin users see most features but not all
+                  return !['/admin/companies'].includes(item.href)
+                }
+                // Superadmin sees everything
+              }
+              
               return true
             }).map((item) => {
               const Icon = item.icon
@@ -192,6 +221,8 @@ export default function Layout({ children, userCompany }: LayoutProps) {
           {children}
         </main>
       </div>
+      
+
     </div>
   )
 }
