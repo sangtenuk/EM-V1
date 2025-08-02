@@ -8,7 +8,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 })
 
 // Utility function to get Supabase storage URL
@@ -149,12 +154,14 @@ export type Database = {
           name: string
           email: string | null
           phone: string | null
+          company: string | null
           identification_number: string
           staff_id: string | null
           table_assignment: string | null
           table_number: number | null
           seat_number: number | null
           qr_code: string | null
+          face_photo_url: string | null
           checked_in: boolean | null
           check_in_time: string | null
           created_at: string
@@ -165,12 +172,14 @@ export type Database = {
           name: string
           email?: string | null
           phone?: string | null
+          company?: string | null
           identification_number: string
           staff_id?: string | null
           table_assignment?: string | null
           table_number?: number | null
           seat_number?: number | null
           qr_code?: string | null
+          face_photo_url?: string | null
           checked_in?: boolean | null
           check_in_time?: string | null
           created_at?: string
@@ -181,12 +190,14 @@ export type Database = {
           name?: string
           email?: string | null
           phone?: string | null
+          company?: string | null
           identification_number?: string
           staff_id?: string | null
           table_assignment?: string | null
           table_number?: number | null
           seat_number?: number | null
           qr_code?: string | null
+          face_photo_url?: string | null
           checked_in?: boolean | null
           check_in_time?: string | null
           created_at?: string
