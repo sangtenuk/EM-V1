@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase, getStorageUrl } from '../../lib/supabase'
-import { CheckCircle, UserCheck, MapPin, Calendar, Clock } from 'lucide-react'
+import { CheckCircle, UserCheck, MapPin, Calendar, Clock, User, Building, Hash } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Event {
@@ -209,7 +209,8 @@ export default function CheckIn() {
           ? `url(${event.custom_background})` 
           : `url(${getStorageUrl(event.custom_background)})`, 
         backgroundSize: 'cover', 
-        backgroundPosition: 'center' 
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
       }
     : {}
 
@@ -299,14 +300,58 @@ export default function CheckIn() {
                 <p className="text-green-700 text-lg mb-4">{checkInResult.attendee?.name}</p>
                 <p className="text-gray-600 mb-4">{checkInResult.message}</p>
                 
-                {checkInResult.attendee?.table_assignment && (
-                  <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                    <div className="flex items-center justify-center text-blue-800">
-                      <MapPin className="h-5 w-5 mr-2" />
-                      <span className="font-semibold">Table: {checkInResult.attendee.table_assignment}</span>
+                {/* Enhanced Attendee Details */}
+                <div className="space-y-3">
+                  {/* Staff ID */}
+                  {checkInResult.attendee?.staff_id && (
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <div className="flex items-center justify-center text-blue-800">
+                        <Hash className="h-4 w-4 mr-2" />
+                        <span className="font-semibold">Staff ID: {checkInResult.attendee.staff_id}</span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* Company */}
+                  {checkInResult.attendee?.company && (
+                    <div className="bg-purple-50 rounded-lg p-3">
+                      <div className="flex items-center justify-center text-purple-800">
+                        <Building className="h-4 w-4 mr-2" />
+                        <span className="font-semibold">{checkInResult.attendee.company}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Table Assignment */}
+                  {checkInResult.attendee?.table_position && (
+                    <div className="bg-green-50 rounded-lg p-3">
+                      <div className="flex items-center justify-center text-green-800">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        <span className="font-semibold">Table: {checkInResult.attendee.table_position}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Info */}
+                  {(checkInResult.attendee?.email || checkInResult.attendee?.phone) && (
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="space-y-1 text-sm">
+                        {checkInResult.attendee.email && (
+                          <div className="flex items-center justify-center text-gray-700">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>{checkInResult.attendee.email}</span>
+                          </div>
+                        )}
+                        {checkInResult.attendee.phone && (
+                          <div className="flex items-center justify-center text-gray-700">
+                            <User className="h-3 w-3 mr-1" />
+                            <span>{checkInResult.attendee.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-center text-gray-600 text-sm">
                   <Clock className="h-4 w-4 mr-2" />

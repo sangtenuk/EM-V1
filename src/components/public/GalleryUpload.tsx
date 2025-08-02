@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Upload, Image, Camera, CheckCircle } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
+import { uploadToPublicFolder } from '../../lib/fileUpload'
 
 interface Event {
   id: string
@@ -120,28 +121,26 @@ export default function GalleryUpload() {
     setUploading(true)
 
     try {
-      const reader = new FileReader()
-      reader.onload = async (e) => {
-        const photoUrl = e.target?.result as string
+      // Upload to public folder using the new utility
+      const uploadedFile = await uploadToPublicFolder(selectedFile, 'image', event.id);
+      
+      // Save photo record to database
+      const { error } = await supabase
+        .from('gallery_photos')
+        .insert([{
+          event_id: event.id,
+          attendee_name: attendeeName.trim() || null,
+          photo_url: uploadedFile.url
+        }])
 
-        const { error } = await supabase
-          .from('gallery_photos')
-          .insert([{
-            event_id: event.id,
-            attendee_name: attendeeName.trim() || null,
-            photo_url: photoUrl
-          }])
+      if (error) throw error
 
-        if (error) throw error
-
-        toast.success('Photo uploaded successfully!')
-        setUploaded(true)
-        setSelectedFile(null)
-        setPreviewUrl(null)
-        setAttendeeName('')
-        setUploadCount(prev => prev + 1)
-      }
-      reader.readAsDataURL(selectedFile)
+      toast.success('Photo uploaded to public folder successfully!')
+      setUploaded(true)
+      setSelectedFile(null)
+      setPreviewUrl(null)
+      setAttendeeName('')
+      setUploadCount(prev => prev + 1)
     } catch (error: any) {
       toast.error('Error uploading photo: ' + error.message)
     } finally {
