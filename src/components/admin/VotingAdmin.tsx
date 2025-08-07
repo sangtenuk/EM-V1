@@ -60,6 +60,7 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
     title: '',
     photo_url: ''
   })
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
 
   useEffect(() => {
     fetchEvents()
@@ -85,6 +86,107 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
       generateVotingQR()
     }
   }, [selectedSessionId])
+
+  // Timer functionality for VotingAdmin
+  useEffect(() => {
+    if (selectedSessionId) {
+      const checkTimer = async () => {
+        try {
+          const { data: sessionData, error } = await supabase
+            .from('voting_sessions')
+            .select('timer_duration, timer_start, is_active')
+            .eq('id', selectedSessionId)
+            .single()
+
+          if (error || !sessionData || !sessionData.is_active) return
+
+          if (sessionData.timer_duration && sessionData.timer_start) {
+            const startTime = new Date(sessionData.timer_start).getTime()
+            const durationMs = sessionData.timer_duration * 60 * 1000
+            const endTime = startTime + durationMs
+            const now = Date.now()
+            
+            if (now < endTime) {
+              const remaining = Math.max(0, Math.floor((endTime - now) / 1000))
+              setTimeRemaining(remaining)
+              
+              const timerInterval = setInterval(() => {
+                const currentTime = Date.now()
+                if (currentTime < endTime) {
+                  const remaining = Math.max(0, Math.floor((endTime - currentTime) / 1000))
+                  setTimeRemaining(remaining)
+                } else {
+                  setTimeRemaining(0)
+                  // End voting when timer finishes
+                  endVotingSession()
+                  clearInterval(timerInterval)
+                }
+              }, 1000)
+              
+              return () => clearInterval(timerInterval)
+            } else {
+              setTimeRemaining(0)
+              endVotingSession()
+            }
+          }
+        } catch (error) {
+          console.error('Error checking timer:', error)
+        }
+      }
+
+      checkTimer()
+    }
+  }, [selectedSessionId])
+
+  const endVotingSession = async () => {
+    try {
+      // Deactivate the voting session
+      const { error } = await supabase
+        .from('voting_sessions')
+        .update({ 
+          is_active: false,
+          timer_start: null
+        })
+        .eq('id', selectedSessionId)
+
+      if (error) {
+        console.error('Error ending voting session:', error)
+        return
+      }
+
+      console.log('Voting session ended successfully')
+      toast.success('Voting session has ended')
+      
+      // Refresh sessions list
+      fetchVotingSessions()
+    } catch (error: any) {
+      console.error('Error ending voting session:', error)
+    }
+  }
+
+  // Real-time subscription for voting session changes
+  useEffect(() => {
+    const subscription = supabase
+      .channel('voting-sessions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'voting_sessions'
+        },
+        (payload) => {
+          console.log('Voting session change detected:', payload)
+          // Refresh sessions when any session is updated
+          fetchVotingSessions()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
 
   const fetchEvents = async () => {
     try {
@@ -249,7 +351,29 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
         .eq('id', sessionId)
 
       if (error) throw error
-      toast.success(`Voting session ${isActive ? 'activated' : 'deactivated'}`)
+      
+      if (!isActive) {
+        // Session is being deactivated - show winner announcement
+        const sessionPhotos = photos.filter(p => p.voting_session_id === sessionId)
+        if (sessionPhotos.length > 0) {
+          const winner = sessionPhotos[0] // First photo is the winner (sorted by vote count)
+          
+          // Check for ties
+          const maxVotes = winner.vote_count
+          const tiedPhotos = sessionPhotos.filter(photo => photo.vote_count === maxVotes)
+          
+          if (tiedPhotos.length > 1) {
+            toast.success(`🏆 Voting ended! TIE DETECTED! ${tiedPhotos.length} photos with ${maxVotes} votes each!`)
+          } else {
+            toast.success(`🏆 Voting ended! Winner: ${winner.title} with ${winner.vote_count} votes!`)
+          }
+        } else {
+          toast.success('Voting session deactivated')
+        }
+      } else {
+        toast.success('Voting session activated')
+      }
+      
       fetchVotingSessions()
     } catch (error: any) {
       toast.error('Error updating session status: ' + error.message)
@@ -341,6 +465,8 @@ export default function VotingAdmin({ userCompany }: VotingAdminProps) {
       toast.error('Error resetting photo votes: ' + error.message)
     }
   }
+
+
 
   const resetSessionForm = () => {
     setSessionForm({ title: '', description: '', timer_duration: 0 })

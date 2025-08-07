@@ -43,10 +43,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
   const [updatingMaxUploads, setUpdatingMaxUploads] = useState(false)
   const [showCaptions, setShowCaptions] = useState(true)
   const [showSenderDetails, setShowSenderDetails] = useState(true)
-<<<<<<< Updated upstream
-=======
-  const [newPhotoIndicator, setNewPhotoIndicator] = useState(false)
->>>>>>> Stashed changes
 
   useEffect(() => {
     fetchEvents()
@@ -65,65 +61,8 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
       fetchPhotos()
       generateGalleryQR()
       fetchEventDetails()
-<<<<<<< Updated upstream
-=======
-      const cleanup = setupRealtimeSubscription()
-      
-      // Cleanup subscription when component unmounts or event changes
-      return cleanup
->>>>>>> Stashed changes
     }
   }, [selectedEventId])
-
-  // Setup real-time subscription for gallery photos
-  const setupRealtimeSubscription = () => {
-    if (!selectedEventId) return
-
-    const subscription = supabase
-      .channel(`gallery_photos_${selectedEventId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'gallery_photos',
-          filter: `event_id=eq.${selectedEventId}`
-        },
-        (payload) => {
-          console.log('Real-time update received:', payload)
-          
-          if (payload.eventType === 'INSERT') {
-            // New photo added
-            const newPhoto = payload.new as GalleryPhoto
-            setPhotos(prevPhotos => [newPhoto, ...prevPhotos])
-            toast.success(`New photo uploaded by ${newPhoto.attendee_name || 'Anonymous'}!`)
-            
-            // Show visual indicator for new photo
-            setNewPhotoIndicator(true)
-            setTimeout(() => setNewPhotoIndicator(false), 3000)
-          } else if (payload.eventType === 'DELETE') {
-            // Photo deleted
-            const deletedPhotoId = payload.old.id
-            setPhotos(prevPhotos => prevPhotos.filter(photo => photo.id !== deletedPhotoId))
-            toast.success('Photo deleted successfully')
-          } else if (payload.eventType === 'UPDATE') {
-            // Photo updated
-            const updatedPhoto = payload.new as GalleryPhoto
-            setPhotos(prevPhotos => 
-              prevPhotos.map(photo => 
-                photo.id === updatedPhoto.id ? updatedPhoto : photo
-              )
-            )
-          }
-        }
-      )
-      .subscribe()
-
-    // Cleanup subscription when component unmounts or event changes
-    return () => {
-      subscription.unsubscribe()
-    }
-  }
 
   useEffect(() => {
     let interval: NodeJS.Timeout
@@ -302,10 +241,9 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                   animate={{
                     x: isActive ? centerX - 150 : x,
                     y: isActive ? centerY - 150 : y,
-                    scale: isActive ? (index === 0 && newPhotoIndicator ? 1.4 : 1.2) : (isNearby ? (index === 0 && newPhotoIndicator ? 1.0 : 0.8) : (index === 0 && newPhotoIndicator ? 0.6 : 0.4)),
-                    opacity: isActive ? 1 : (isNearby ? (index === 0 && newPhotoIndicator ? 0.9 : 0.7) : (index === 0 && newPhotoIndicator ? 0.5 : 0.3)),
-                    rotate: isActive ? 0 : angle * 0.1,
-                    boxShadow: index === 0 && newPhotoIndicator ? "0 0 20px rgba(34, 197, 94, 0.8)" : "none"
+                    scale: isActive ? 1.2 : (isNearby ? 0.8 : 0.4),
+                    opacity: isActive ? 1 : (isNearby ? 0.7 : 0.3),
+                    rotate: isActive ? 0 : angle * 0.1
                   }}
                   transition={{
                     duration: 0.8,
@@ -465,7 +403,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
 
   return (
     <div>
-<<<<<<< Updated upstream
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-3">
           <div>
@@ -473,21 +410,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             <p className="text-gray-600 text-sm">Manage photo uploads and slideshow display</p>
           </div>
         </div>
-=======
-              <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center space-x-3">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Event Gallery</h1>
-              <p className="text-gray-600 text-sm">Manage photo uploads and slideshow display</p>
-              {newPhotoIndicator && (
-                <div className="flex items-center space-x-2 mt-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-green-600 font-medium">Live updates enabled</span>
-                </div>
-              )}
-            </div>
-          </div>
->>>>>>> Stashed changes
         <div className="flex space-x-2">
           <button
             onClick={shufflePhotos}
@@ -567,17 +489,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             {selectedEventId && (
               <>
                 <div className="bg-blue-50 rounded-lg p-3 mb-3">
-<<<<<<< Updated upstream
                   <div className="text-blue-700 font-medium text-sm">Gallery Stats</div>
-=======
-                  <div className="text-blue-700 font-medium text-sm flex items-center justify-between">
-                    Gallery Stats
-                    <div className="flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-xs text-green-600">Live</span>
-                    </div>
-                  </div>
->>>>>>> Stashed changes
                   <div className="text-xl font-bold text-blue-900">{photos.length}</div>
                   <div className="text-xs text-blue-600">Photos uploaded</div>
                 </div>

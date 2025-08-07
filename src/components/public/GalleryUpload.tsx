@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Upload, Image, Camera, CheckCircle } from 'lucide-react'
+import { Upload, Image, Camera, CheckCircle, Eye } from 'lucide-react'
 import { supabase, getStorageUrl } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 import { uploadToPublicFolder } from '../../lib/fileUpload'
@@ -15,6 +15,13 @@ interface Event {
   }
 }
 
+interface GalleryPhoto {
+  id: string
+  attendee_name: string | null
+  photo_url: string
+  created_at: string
+}
+
 export default function GalleryUpload() {
   const { eventId } = useParams()
   const [event, setEvent] = useState<Event | null>(null)
@@ -25,12 +32,78 @@ export default function GalleryUpload() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploadCount, setUploadCount] = useState(0)
   const [maxUploads, setMaxUploads] = useState(2)
+<<<<<<< Updated upstream
+=======
+  const [showGallery, setShowGallery] = useState(false)
+  const [photos, setPhotos] = useState<GalleryPhoto[]>([])
+  const [newPhotoIndicator, setNewPhotoIndicator] = useState(false)
+>>>>>>> Stashed changes
 
   useEffect(() => {
     if (eventId) {
       fetchEvent()
+      setupRealtimeSubscription()
     }
   }, [eventId])
+
+  // Setup real-time subscription for gallery photos
+  const setupRealtimeSubscription = () => {
+    if (!eventId) return
+
+    const subscription = supabase
+      .channel(`gallery_photos_public_${eventId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'gallery_photos',
+          filter: `event_id=eq.${eventId}`
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload)
+          
+          if (payload.eventType === 'INSERT') {
+            // New photo added
+            const newPhoto = payload.new as GalleryPhoto
+            setPhotos(prevPhotos => [newPhoto, ...prevPhotos])
+            
+            // Show indicator for new photos
+            setNewPhotoIndicator(true)
+            setTimeout(() => setNewPhotoIndicator(false), 3000)
+            
+            toast.success(`New photo uploaded by ${newPhoto.attendee_name || 'Anonymous'}!`)
+          } else if (payload.eventType === 'DELETE') {
+            // Photo deleted
+            const deletedPhotoId = payload.old.id
+            setPhotos(prevPhotos => prevPhotos.filter(photo => photo.id !== deletedPhotoId))
+          }
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      subscription.unsubscribe()
+    }
+  }
+
+  const fetchPhotos = async () => {
+    if (!eventId) return
+    
+    try {
+      const { data, error } = await supabase
+        .from('gallery_photos')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setPhotos(data || [])
+    } catch (error: any) {
+      console.error('Error fetching photos:', error)
+    }
+  }
 
   const fetchEvent = async () => {
     try {
@@ -60,6 +133,9 @@ export default function GalleryUpload() {
       
       // Check upload count for this attendee
       await checkUploadCount()
+      
+      // Fetch existing photos
+      await fetchPhotos()
     } catch (error: any) {
       toast.error('Event not found')
     }
@@ -141,6 +217,12 @@ export default function GalleryUpload() {
       setPreviewUrl(null)
       setAttendeeName('')
       setUploadCount(prev => prev + 1)
+<<<<<<< Updated upstream
+=======
+      
+      // Show gallery after successful upload
+      setShowGallery(true)
+>>>>>>> Stashed changes
     } catch (error: any) {
       toast.error('Error uploading photo: ' + error.message)
     } finally {
@@ -187,7 +269,11 @@ export default function GalleryUpload() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-4 md:py-8 px-4">
+<<<<<<< Updated upstream
       <div className="max-w-xl mx-auto">
+=======
+      <div className="max-w-4xl mx-auto">
+>>>>>>> Stashed changes
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="bg-blue-600 text-white px-4 md:px-6 py-4 md:py-6 text-center">
             <div className="flex items-center justify-center mb-3">
@@ -196,9 +282,80 @@ export default function GalleryUpload() {
             <h1 className="text-xl md:text-2xl font-bold mb-2">Share Your Photo</h1>
             <p className="text-blue-100 text-sm">{event.name}</p>
             <p className="text-blue-200 text-xs">{event?.company?.name ?? 'No Company'}</p>
+<<<<<<< Updated upstream
           </div>
 
           <div className="px-4 md:px-6 py-4 md:py-6">
+=======
+            
+            {/* Real-time indicator */}
+            <div className="flex items-center justify-center space-x-2 mt-3">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-xs text-green-200">Live updates enabled</span>
+            </div>
+          </div>
+
+          <div className="px-4 md:px-6 py-4 md:py-6">
+            {/* Gallery Toggle */}
+            <div className="flex justify-center mb-6">
+              <button
+                onClick={() => setShowGallery(!showGallery)}
+                className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors"
+              >
+                <Eye className="h-4 w-4" />
+                <span>{showGallery ? 'Hide Gallery' : 'View Gallery'}</span>
+                {photos.length > 0 && (
+                  <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                    {photos.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Gallery View */}
+            {showGallery && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-lg font-semibold mb-3 flex items-center">
+                  <Image className="h-5 w-5 mr-2" />
+                  Live Gallery
+                  {newPhotoIndicator && (
+                    <div className="ml-2 flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs text-green-600">New!</span>
+                    </div>
+                  )}
+                </h3>
+                
+                {photos.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {photos.map((photo, index) => (
+                      <div key={photo.id} className="relative group">
+                        <img
+                          src={getStorageUrl(photo.photo_url)}
+                          alt="Gallery"
+                          className={`w-full h-24 object-cover rounded-lg transition-all duration-300 ${
+                            index === 0 && newPhotoIndicator ? 'ring-2 ring-green-500 scale-105' : ''
+                          }`}
+                        />
+                        {photo.attendee_name && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white text-xs p-1 rounded-b-lg truncate">
+                            {photo.attendee_name}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Image className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>No photos uploaded yet</p>
+                    <p className="text-sm">Be the first to share a photo!</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+>>>>>>> Stashed changes
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

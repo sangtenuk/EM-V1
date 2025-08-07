@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Monitor, Vote, Trophy, BarChart3, QrCode, RefreshCw } from 'lucide-react' 
+import { Monitor, Vote, BarChart3, QrCode, RefreshCw, Trophy, RotateCcw } from 'lucide-react' 
 import { supabase, getStorageUrl } from '../../lib/supabase'
 import { useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import QRCodeLib from 'qrcode'
+import toast from 'react-hot-toast'
 
 interface VotingSession {
   id: string
@@ -47,6 +48,10 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showResults, setShowResults] = useState(false)
+  const [winner, setWinner] = useState<VotingPhoto | null>(null)
+  const [isTie, setIsTie] = useState(false)
+  const [tiedPhotos, setTiedPhotos] = useState<VotingPhoto[]>([])
+  const [redrawCount, setRedrawCount] = useState(0)
 
   useEffect(() => {
     fetchActiveSessions()
@@ -115,7 +120,7 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
     }
   }, [photos.length])
 
-  // Timer functionality
+  // Timer functionality - Only for display, not for ending sessions
   useEffect(() => {
     if (selectedSessionId) {
       const session = votingSessions.find(s => s.id === selectedSessionId)
@@ -136,8 +141,10 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
               setTimeRemaining(remaining)
             } else {
               setTimeRemaining(0)
-              // Show results when timer finishes
+              // Show results when timer finishes (but don't deactivate session)
               setShowResults(true)
+              // Detect winner and ties
+              detectWinnerAndTies()
               clearInterval(timerInterval)
             }
           }, 1000)
@@ -145,8 +152,10 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
           return () => clearInterval(timerInterval)
         } else {
           setTimeRemaining(0)
-          // Show results when timer finishes
+          // Show results when timer finishes (but don't deactivate session)
           setShowResults(true)
+          // Detect winner and ties
+          detectWinnerAndTies()
         }
       } else {
         setTimeRemaining(null)
@@ -496,6 +505,87 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
     }
   }
 
+  const detectWinnerAndTies = () => {
+    if (photos.length === 0) return
+
+    const maxVotes = photos[0]?.vote_count || 0
+    const winners = photos.filter(photo => photo.vote_count === maxVotes)
+    
+          if (winners.length > 1) {
+        // Tie detected
+        setIsTie(true)
+        setTiedPhotos(winners)
+        setWinner(null)
+        toast.success(`🏆 TIE DETECTED! ${winners.length} photos with ${maxVotes} votes each!`)
+      } else {
+        // Clear winner
+        setIsTie(false)
+        setTiedPhotos([])
+        setWinner(winners[0] || null)
+      }
+  }
+
+  const handleRedraw = async () => {
+    try {
+      if (tiedPhotos.length <= 1) {
+        toast.error('No tie detected for redraw')
+        return
+      }
+
+      // Randomly select a winner from tied photos
+      const randomIndex = Math.floor(Math.random() * tiedPhotos.length)
+      const newWinner = tiedPhotos[randomIndex]
+      
+      // Update winner state
+      setWinner(newWinner)
+      setIsTie(false)
+      setRedrawCount(prev => prev + 1)
+      
+      // Show the new winner
+      toast.success(`🎲 Redraw complete! New winner: ${newWinner.title} with ${newWinner.vote_count} votes!`)
+      
+      // Save the redraw result to database
+      await saveVotingResult(newWinner)
+      
+    } catch (error: any) {
+      console.error('Error during redraw:', error)
+      toast.error('Error during redraw')
+    }
+  }
+
+  const saveVotingResult = async (winningPhoto: VotingPhoto) => {
+    try {
+      const { error } = await supabase
+        .from('voting_results')
+        .upsert([{
+          voting_session_id: selectedSessionId,
+          winning_photo_id: winningPhoto.id,
+          winning_photo_title: winningPhoto.title,
+          winning_vote_count: winningPhoto.vote_count,
+          total_votes: totalVotes,
+          total_participants: totalParticipants,
+          is_redraw: redrawCount > 0,
+          redraw_count: redrawCount,
+          created_at: new Date().toISOString()
+        }], {
+          onConflict: 'voting_session_id'
+        })
+
+      if (error) {
+        console.error('Error saving voting result:', error)
+        toast.error('Error saving result to database')
+      } else {
+        console.log('Voting result saved successfully')
+      }
+    } catch (error: any) {
+      console.error('Error saving voting result:', error)
+    }
+  }
+
+
+
+
+
   const toggleFullscreen = async () => {
     try {
       if (!isFullscreen) {
@@ -648,8 +738,8 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
           {photos.length > 0 && (
             <div className="mt-8 px-6">
               <div className="max-w-4xl mx-auto">
-                {/* Olympic Podium Display when timer finishes and results are showing - HIDE EVERYTHING ELSE */}
-                {timeRemaining === 0 && showResults && photos.length >= 3 ? (
+                {/* Trophy Podium Display when timer finishes and results are showing */}
+                {timeRemaining === 0 && showResults && photos.length > 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -657,81 +747,161 @@ export default function VotingMonitor({ userCompany }: VotingMonitorProps) {
                     className="mb-8"
                   >
                     <h2 className="text-5xl font-bold text-center text-gray-900 mb-12">🏆 FINAL RESULTS 🏆</h2>
-                    <div className="flex justify-center items-end space-x-8 h-96">
-                      {/* 2nd Place */}
+                    
+                    {/* Trophy Podium for Winner - Only when there's a clear winner (no tie) */}
+                    {winner && !isTie && (
                       <motion.div
                         initial={{ opacity: 0, y: 100 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 1, delay: 0.7, ease: "easeOut" }}
-                        className="flex flex-col items-center"
+                        transition={{ duration: 1.5, delay: 0.5, ease: "easeOut" }}
+                        className="flex justify-center items-end space-x-8 h-96 mb-8"
                       >
-                        <div className="bg-gray-300 rounded-t-lg w-48 h-48 flex items-center justify-center shadow-xl">
-                          <div className="text-center">
-                            <div className="text-6xl mb-4">🥈</div>
-                            <div className="text-2xl font-bold text-gray-700">2nd PLACE</div>
-                          </div>
-                        </div>
-                        <div className="bg-white rounded-xl p-6 mt-4 shadow-xl border border-gray-200 w-48">
-                          <img
-                            src={getStorageUrl(photos[1]?.photo_url)}
-                            alt={photos[1]?.title}
-                            className="w-full h-32 object-cover rounded-lg mb-4"
-                          />
-                          <div className="text-lg font-bold text-gray-900 truncate mb-2">{photos[1]?.title}</div>
-                          <div className="text-xl text-purple-600 font-bold">{photos[1]?.vote_count} votes</div>
-                        </div>
-                      </motion.div>
+                        {/* 2nd Place */}
+                        {photos.length >= 2 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 100 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 1, delay: 1.2, ease: "easeOut" }}
+                            className="flex flex-col items-center"
+                          >
+                            <div className="bg-gray-300 rounded-t-lg w-48 h-48 flex items-center justify-center shadow-xl">
+                              <div className="text-center">
+                                <div className="text-6xl mb-4">🥈</div>
+                                <div className="text-2xl font-bold text-gray-700">2nd PLACE</div>
+                              </div>
+                            </div>
+                            <div className="bg-white rounded-xl p-6 mt-4 shadow-xl border border-gray-200 w-48">
+                              <img
+                                src={getStorageUrl(photos[1]?.photo_url)}
+                                alt={photos[1]?.title}
+                                className="w-full h-32 object-cover rounded-lg mb-4"
+                              />
+                              <div className="text-lg font-bold text-gray-900 truncate mb-2">{photos[1]?.title}</div>
+                              <div className="text-xl text-purple-600 font-bold">{photos[1]?.vote_count} votes</div>
+                            </div>
+                          </motion.div>
+                        )}
 
-                      {/* 1st Place */}
-                      <motion.div
-                        initial={{ opacity: 0, y: 100 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 1, delay: 1.5, ease: "easeOut" }}
-                        className="flex flex-col items-center"
-                      >
-                        <div className="bg-yellow-400 rounded-t-lg w-56 h-56 flex items-center justify-center shadow-xl">
-                          <div className="text-center">
-                            <div className="text-7xl mb-4">🥇</div>
-                            <div className="text-3xl font-bold text-gray-700">1st PLACE</div>
+                        {/* 1st Place - Winner */}
+                        <motion.div
+                          initial={{ opacity: 0, y: 100 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 1, delay: 1.8, ease: "easeOut" }}
+                          className="flex flex-col items-center"
+                        >
+                          <div className="bg-yellow-400 rounded-t-lg w-64 h-64 flex items-center justify-center shadow-xl">
+                            <div className="text-center">
+                              <div className="text-8xl mb-4">🏆</div>
+                              <div className="text-3xl font-bold text-gray-700">WINNER</div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="bg-white rounded-xl p-6 mt-4 shadow-xl border border-gray-200 w-56">
-                          <img
-                            src={getStorageUrl(photos[0]?.photo_url)}
-                            alt={photos[0]?.title}
-                            className="w-full h-40 object-cover rounded-lg mb-4"
-                          />
-                          <div className="text-xl font-bold text-gray-900 truncate mb-2">{photos[0]?.title}</div>
-                          <div className="text-2xl text-purple-600 font-bold">{photos[0]?.vote_count} votes</div>
-                        </div>
-                      </motion.div>
+                          <div className="bg-white rounded-xl p-6 mt-4 shadow-xl border border-gray-200 w-64">
+                            <img
+                              src={getStorageUrl(winner.photo_url)}
+                              alt={winner.title}
+                              className="w-full h-48 object-cover rounded-lg mb-4"
+                            />
+                            <div className="text-xl font-bold text-gray-900 truncate mb-2">{winner.title}</div>
+                            <div className="text-2xl text-purple-600 font-bold">{winner.vote_count} votes</div>
+                          </div>
+                        </motion.div>
 
-                      {/* 3rd Place */}
+                        {/* 3rd Place */}
+                        {photos.length >= 3 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 100 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 1, delay: 0.8, ease: "easeOut" }}
+                            className="flex flex-col items-center"
+                          >
+                            <div className="bg-amber-600 rounded-t-lg w-48 h-32 flex items-center justify-center shadow-xl">
+                              <div className="text-center">
+                                <div className="text-5xl mb-2">🥉</div>
+                                <div className="text-xl font-bold text-gray-700">3rd PLACE</div>
+                              </div>
+                            </div>
+                            <div className="bg-white rounded-xl p-6 mt-4 shadow-xl border border-gray-200 w-48">
+                              <img
+                                src={getStorageUrl(photos[2]?.photo_url)}
+                                alt={photos[2]?.title}
+                                className="w-full h-32 object-cover rounded-lg mb-4"
+                              />
+                              <div className="text-lg font-bold text-gray-900 truncate mb-2">{photos[2]?.title}</div>
+                              <div className="text-xl text-purple-600 font-bold">{photos[2]?.vote_count} votes</div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Tie Detection and Redraw Button - Show when tie detected */}
+                    {isTie && tiedPhotos.length > 0 && (
                       <motion.div
-                        initial={{ opacity: 0, y: 100 }}
+                        initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
-                        className="flex flex-col items-center"
+                        transition={{ duration: 0.8, delay: 2, ease: "easeOut" }}
+                        className="text-center mb-8"
                       >
-                        <div className="bg-amber-600 rounded-t-lg w-48 h-32 flex items-center justify-center shadow-xl">
-                          <div className="text-center">
-                            <div className="text-5xl mb-2">🥉</div>
-                            <div className="text-xl font-bold text-gray-700">3rd PLACE</div>
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 inline-block">
+                          <div className="flex items-center justify-center mb-4">
+                            <Trophy className="h-8 w-8 text-yellow-600 mr-3" />
+                            <span className="text-xl font-bold text-yellow-800">TIE DETECTED!</span>
                           </div>
-                        </div>
-                        <div className="bg-white rounded-xl p-6 mt-4 shadow-xl border border-gray-200 w-48">
-                          <img
-                            src={getStorageUrl(photos[2]?.photo_url)}
-                            alt={photos[2]?.title}
-                            className="w-full h-32 object-cover rounded-lg mb-4"
-                          />
-                          <div className="text-lg font-bold text-gray-900 truncate mb-2">{photos[2]?.title}</div>
-                          <div className="text-xl text-purple-600 font-bold">{photos[2]?.vote_count} votes</div>
+                          <p className="text-yellow-700 mb-4">
+                            {tiedPhotos.length} photos have the same number of votes ({tiedPhotos[0]?.vote_count} votes each).
+                          </p>
+                          <button
+                            onClick={handleRedraw}
+                            className="bg-yellow-600 text-white px-6 py-3 rounded-lg hover:bg-yellow-700 transition-colors font-semibold flex items-center mx-auto"
+                          >
+                            <RotateCcw className="h-5 w-5 mr-2" />
+                            🎲 Redraw Winner
+                          </button>
                         </div>
                       </motion.div>
+                    )}
+
+                    {/* All Results Grid */}
+                    <div className="mt-8">
+                      <h3 className="text-2xl font-bold text-center text-gray-900 mb-6">All Results</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {photos.map((photo, index) => (
+                          <motion.div
+                            key={photo.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
+                            className={`bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200 ${
+                              winner && photo.id === winner.id ? 'ring-4 ring-yellow-400 ring-opacity-75' : ''
+                            }`}
+                          >
+                            <img
+                              src={getStorageUrl(photo.photo_url)}
+                              alt={photo.title}
+                              className="w-full h-48 object-cover"
+                            />
+                            <div className="p-4">
+                              <h3 className="text-lg font-semibold text-gray-900 mb-2">{photo.title}</h3>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm text-gray-600">Votes:</span>
+                                <span className="text-lg font-bold text-purple-600">{photo.vote_count}</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                <div
+                                  className="h-2 rounded-full bg-purple-500 transition-all duration-500"
+                                  style={{ width: `${photo.vote_percentage}%` }}
+                                />
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1">
+                                {photo.vote_percentage.toFixed(1)}%
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
                     </div>
                     
-                    {/* Total votes and participants below results when timer finishes */}
+                    {/* Total votes and participants */}
                     <div className="flex justify-center space-x-12 text-lg md:text-xl mt-8">
                       <div className="flex items-center space-x-3 bg-white bg-opacity-95 rounded-xl px-6 py-3 shadow-lg border border-gray-200">
                         <BarChart3 className="h-6 w-6 text-purple-600" />

@@ -280,7 +280,93 @@ export default function Registration() {
             placeholder="Staff ID (Optional)"
           />
           
-          
+          {/* Face Photo Section */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">Face Photo (Optional)</label>
+            
+            {!facePhoto && !showCamera && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center justify-center"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Take Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center justify-center"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Photo
+                </button>
+              </div>
+            )}
+            
+            {showCamera && (
+              <div className="relative">
+                <div className="relative bg-black rounded-lg overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-64 object-cover"
+                  />
+                  {/* Camera Frame */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-48 h-48 border-4 border-white rounded-full opacity-80"></div>
+                  </div>
+                  {/* Capture Button */}
+                  <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                    <button
+                      type="button"
+                      onClick={capturePhoto}
+                      className="bg-white text-black px-6 py-2 rounded-full hover:bg-gray-100 flex items-center"
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      Capture
+                    </button>
+                  </div>
+                  {/* Close Button */}
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hover:bg-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+              </div>
+            )}
+            
+            {facePhoto && (
+              <div className="relative">
+                <img
+                  src={facePhoto}
+                  alt="Face photo"
+                  className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
+                />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute -top-2 -right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </div>
           
           <button
             type="submit"

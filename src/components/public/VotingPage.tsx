@@ -8,6 +8,7 @@ interface VotingSession {
   id: string
   title: string
   description: string | null
+  is_active: boolean
   event: {
     id: string
     name: string
@@ -42,15 +43,93 @@ export default function VotingPage() {
   const [hasVoted, setHasVoted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [voting, setVoting] = useState(false)
-  const [showResults, setShowResults] = useState(false)
   const [identificationNumber, setIdentificationNumber] = useState('')
   const [showLogin, setShowLogin] = useState(true)
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
 
   useEffect(() => {
     if (sessionId) {
       fetchSession()
     }
   }, [sessionId])
+
+  // Timer functionality for VotingPage
+  useEffect(() => {
+    if (session && session.is_active) {
+      // Fetch session details to get timer information
+      const checkTimer = async () => {
+        try {
+          const { data: sessionData, error } = await supabase
+            .from('voting_sessions')
+            .select('timer_duration, timer_start')
+            .eq('id', sessionId)
+            .single()
+
+          if (error || !sessionData) return
+
+          if (sessionData.timer_duration && sessionData.timer_start) {
+            const startTime = new Date(sessionData.timer_start).getTime()
+            const durationMs = sessionData.timer_duration * 60 * 1000
+            const endTime = startTime + durationMs
+            const now = Date.now()
+            
+            if (now < endTime) {
+              const remaining = Math.max(0, Math.floor((endTime - now) / 1000))
+              setTimeRemaining(remaining)
+              
+              const timerInterval = setInterval(() => {
+                const currentTime = Date.now()
+                if (currentTime < endTime) {
+                  const remaining = Math.max(0, Math.floor((endTime - currentTime) / 1000))
+                  setTimeRemaining(remaining)
+                } else {
+                  setTimeRemaining(0)
+                  // End voting when timer finishes
+                  endVotingSession()
+                  clearInterval(timerInterval)
+                }
+              }, 1000)
+              
+              return () => clearInterval(timerInterval)
+            } else {
+              setTimeRemaining(0)
+              endVotingSession()
+            }
+          }
+        } catch (error) {
+          console.error('Error checking timer:', error)
+        }
+      }
+
+      checkTimer()
+    }
+  }, [session, sessionId])
+
+  const endVotingSession = async () => {
+    try {
+      // Deactivate the voting session
+      const { error } = await supabase
+        .from('voting_sessions')
+        .update({ 
+          is_active: false,
+          timer_start: null
+        })
+        .eq('id', sessionId)
+
+      if (error) {
+        console.error('Error ending voting session:', error)
+        return
+      }
+
+      console.log('Voting session ended successfully')
+      toast.success('Voting session has ended')
+      
+      // Refresh session data
+      fetchSession()
+    } catch (error: any) {
+      console.error('Error ending voting session:', error)
+    }
+  }
 
   useEffect(() => {
     if (sessionId && attendee) {
@@ -87,6 +166,7 @@ export default function VotingPage() {
           id,
           title,
           description,
+          is_active,
           event:events(
             id,
             name,
@@ -113,6 +193,7 @@ export default function VotingPage() {
         id: data.id,
         title: data.title,
         description: data.description,
+        is_active: data.is_active,
         event: {
           id: eventData.id,
           name: eventData.name,
@@ -227,6 +308,12 @@ export default function VotingPage() {
   const handleVote = async (photoId: string) => {
     if (!attendee || voting) return
 
+    // Check if session is still active
+    if (!session || !session.is_active) {
+      toast.error('Voting has ended for this session')
+      return
+    }
+
     try {
       setVoting(true)
 
@@ -253,7 +340,6 @@ export default function VotingPage() {
 
       toast.success('Vote cast successfully!')
       setHasVoted(true)
-      setShowResults(true)
       fetchPhotosWithVotes()
     } catch (error: any) {
       toast.error('Error casting vote: ' + error.message)
@@ -361,27 +447,38 @@ export default function VotingPage() {
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
             <div className="flex items-center">
               <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-              <span className="text-green-800 font-medium">Thank you for voting!</span>
+              <span className="text-green-800 font-medium">Thank you for voting! Your vote has been recorded.</span>
             </div>
           </div>
         )}
 
-        {/* Toggle Results Button */}
-        {hasVoted && (
-          <div className="text-center mb-6">
-            <button
-              onClick={() => setShowResults(!showResults)}
-              className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              {showResults ? 'Hide Results' : 'Show Results'}
-            </button>
+        {/* Session Ended Status */}
+        {session && !session.is_active && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <CheckCircle className="h-5 w-5 text-red-600 mr-2" />
+              <span className="text-red-800 font-medium">Voting has ended for this session</span>
+            </div>
           </div>
         )}
+
+
+
+
 
         {/* Photos Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {photos.map((photo) => (
-            <div key={photo.id} className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div 
+              key={photo.id} 
+              className={`bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 ${
+                hasVoted && photo.user_voted 
+                  ? 'ring-4 ring-green-500 ring-opacity-75 shadow-xl scale-105' 
+                  : hasVoted 
+                    ? 'opacity-60' 
+                    : ''
+              }`}
+            >
               <img
                 src={getStorageUrl(photo.photo_url)}
                 alt={photo.title}
@@ -393,39 +490,24 @@ export default function VotingPage() {
                 {!hasVoted ? (
                   <button
                     onClick={() => handleVote(photo.id)}
-                    disabled={voting}
+                    disabled={voting || !session?.is_active}
                     className="w-full bg-purple-600 text-white py-2 md:py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center text-sm md:text-base"
                   >
                     <Vote className="h-5 w-5 mr-2" />
-                    {voting ? 'Voting...' : 'Vote for This'}
+                    {voting ? 'Voting...' : !session?.is_active ? 'Voting Ended' : 'Vote for This'}
                   </button>
-                ) : showResults ? (
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700">Votes</span>
-                      <span className="text-sm font-bold text-gray-900">
-                        {photo.vote_count} ({photo.vote_percentage.toFixed(1)}%)
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2 md:h-3">
-                      <div
-                        className={`h-2 md:h-3 rounded-full transition-all duration-500 ${
-                          photo.user_voted ? 'bg-green-500' : 'bg-purple-500'
-                        }`}
-                        style={{ width: `${photo.vote_percentage}%` }}
-                      />
-                    </div>
-                    {photo.user_voted && (
-                      <div className="flex items-center text-green-600 text-sm">
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        <span>You voted for this</span>
+                ) : (
+                  <div className="text-center py-2 md:py-3">
+                    {photo.user_voted ? (
+                      <div className="flex items-center justify-center text-green-600">
+                        <CheckCircle className="h-6 w-6 mr-2" />
+                        <span className="font-semibold">You voted for this</span>
+                      </div>
+                    ) : (
+                      <div className="text-gray-500">
+                        <span className="text-sm">Vote recorded</span>
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="text-center py-2 md:py-3 text-gray-500">
-                    <CheckCircle className="h-8 w-8 mx-auto mb-2" />
-                    <p>Vote cast successfully!</p>
                   </div>
                 )}
               </div>
