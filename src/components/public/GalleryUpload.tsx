@@ -32,12 +32,9 @@ export default function GalleryUpload() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [uploadCount, setUploadCount] = useState(0)
   const [maxUploads, setMaxUploads] = useState(2)
-<<<<<<< Updated upstream
-=======
   const [showGallery, setShowGallery] = useState(false)
   const [photos, setPhotos] = useState<GalleryPhoto[]>([])
   const [newPhotoIndicator, setNewPhotoIndicator] = useState(false)
->>>>>>> Stashed changes
 
   useEffect(() => {
     if (eventId) {
@@ -217,12 +214,9 @@ export default function GalleryUpload() {
       setPreviewUrl(null)
       setAttendeeName('')
       setUploadCount(prev => prev + 1)
-<<<<<<< Updated upstream
-=======
       
       // Show gallery after successful upload
       setShowGallery(true)
->>>>>>> Stashed changes
     } catch (error: any) {
       toast.error('Error uploading photo: ' + error.message)
     } finally {
@@ -269,11 +263,7 @@ export default function GalleryUpload() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-4 md:py-8 px-4">
-<<<<<<< Updated upstream
-      <div className="max-w-xl mx-auto">
-=======
       <div className="max-w-4xl mx-auto">
->>>>>>> Stashed changes
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           <div className="bg-blue-600 text-white px-4 md:px-6 py-4 md:py-6 text-center">
             <div className="flex items-center justify-center mb-3">
@@ -282,11 +272,7 @@ export default function GalleryUpload() {
             <h1 className="text-xl md:text-2xl font-bold mb-2">Share Your Photo</h1>
             <p className="text-blue-100 text-sm">{event.name}</p>
             <p className="text-blue-200 text-xs">{event?.company?.name ?? 'No Company'}</p>
-<<<<<<< Updated upstream
-          </div>
 
-          <div className="px-4 md:px-6 py-4 md:py-6">
-=======
             
             {/* Real-time indicator */}
             <div className="flex items-center justify-center space-x-2 mt-3">
@@ -355,7 +341,6 @@ export default function GalleryUpload() {
               </div>
             )}
 
->>>>>>> Stashed changes
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

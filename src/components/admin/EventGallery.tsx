@@ -43,10 +43,7 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
   const [updatingMaxUploads, setUpdatingMaxUploads] = useState(false)
   const [showCaptions, setShowCaptions] = useState(true)
   const [showSenderDetails, setShowSenderDetails] = useState(true)
-<<<<<<< Updated upstream
-=======
   const [newPhotoIndicator, setNewPhotoIndicator] = useState(false)
->>>>>>> Stashed changes
 
   useEffect(() => {
     fetchEvents()
@@ -65,13 +62,10 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
       fetchPhotos()
       generateGalleryQR()
       fetchEventDetails()
-<<<<<<< Updated upstream
-=======
       const cleanup = setupRealtimeSubscription()
       
       // Cleanup subscription when component unmounts or event changes
       return cleanup
->>>>>>> Stashed changes
     }
   }, [selectedEventId])
 
@@ -465,15 +459,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
 
   return (
     <div>
-<<<<<<< Updated upstream
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Event Gallery</h1>
-            <p className="text-gray-600 text-sm">Manage photo uploads and slideshow display</p>
-          </div>
-        </div>
-=======
               <div className="flex justify-between items-center mb-6">
           <div className="flex items-center space-x-3">
             <div>
@@ -487,7 +472,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
               )}
             </div>
           </div>
->>>>>>> Stashed changes
         <div className="flex space-x-2">
           <button
             onClick={shufflePhotos}
@@ -567,9 +551,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
             {selectedEventId && (
               <>
                 <div className="bg-blue-50 rounded-lg p-3 mb-3">
-<<<<<<< Updated upstream
-                  <div className="text-blue-700 font-medium text-sm">Gallery Stats</div>
-=======
                   <div className="text-blue-700 font-medium text-sm flex items-center justify-between">
                     Gallery Stats
                     <div className="flex items-center space-x-1">
@@ -577,7 +558,6 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
                       <span className="text-xs text-green-600">Live</span>
                     </div>
                   </div>
->>>>>>> Stashed changes
                   <div className="text-xl font-bold text-blue-900">{photos.length}</div>
                   <div className="text-xs text-blue-600">Photos uploaded</div>
                 </div>
