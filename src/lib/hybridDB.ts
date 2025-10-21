@@ -72,6 +72,15 @@ export interface Company {
   contact_number?: string;
   email?: string;
   logo?: string;
+  features_enabled?: {
+    registration: boolean;
+    checkin: boolean;
+    voting: boolean;
+    welcoming: boolean;
+    quiz: boolean;
+    lucky_draw: boolean;
+    gallery: boolean;
+  };
   created_at?: string;
   lastSynced?: string;
   syncStatus?: 'pending' | 'synced' | 'error';

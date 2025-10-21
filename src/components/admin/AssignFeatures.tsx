@@ -127,9 +127,19 @@ export default function AssignFeatures() {
   const toggleFeature = (featureKey: string) => {
     if (!selectedCompany) return
 
+    const currentFeatures = selectedCompany.features_enabled || {
+      registration: true,
+      checkin: true,
+      voting: true,
+      welcoming: true,
+      quiz: true,
+      lucky_draw: true,
+      gallery: true
+    }
+
     const updatedFeatures = {
-      ...selectedCompany.features_enabled,
-      [featureKey]: !selectedCompany.features_enabled?.[featureKey as keyof typeof selectedCompany.features_enabled]
+      ...currentFeatures,
+      [featureKey]: !currentFeatures[featureKey as keyof typeof currentFeatures]
     }
 
     setSelectedCompany({

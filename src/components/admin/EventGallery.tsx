@@ -364,23 +364,25 @@ export default function EventGallery({ userCompany }: EventGalleryProps) {
           {/* Central Active Photo Display */}
           {photos[currentSlideIndex] && (
             <motion.div
-              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              className="absolute inset-0 flex items-center justify-center pointer-events-none p-8"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, ease: "easeOut" }}
             >
-              <div className="relative max-w-2xl max-h-96">
+              <div className="relative w-full h-full flex items-center justify-center">
                 <motion.img
                   key={currentSlideIndex}
                   src={getStorageUrl(photos[currentSlideIndex]?.photo_url)}
                   alt="Active Gallery"
-                  className="w-full h-auto object-contain rounded-2xl shadow-2xl border-4 border-white/40"
+                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border-4 border-white/40"
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.8, opacity: 0 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                   style={{
                     filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.5))',
+                    maxWidth: '80vw',
+                    maxHeight: '80vh',
                   }}
                 />
                 
