@@ -26,15 +26,33 @@ CREATE INDEX IF NOT EXISTS idx_lucky_draw_winners_created_at ON lucky_draw_winne
 ALTER TABLE lucky_draw_winners ENABLE ROW LEVEL SECURITY;
 
 -- Policy for authenticated users to manage lucky draw winners
-CREATE POLICY "Authenticated users can manage lucky draw winners"
-  ON lucky_draw_winners
-  FOR ALL
-  TO authenticated
-  USING (true);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'lucky_draw_winners'
+    AND policyname = 'Authenticated users can manage lucky draw winners'
+  ) THEN
+    CREATE POLICY "Authenticated users can manage lucky draw winners"
+      ON lucky_draw_winners
+      FOR ALL
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
 -- Policy for public to read lucky draw winners (for display purposes)
-CREATE POLICY "Public can read lucky draw winners"
-  ON lucky_draw_winners
-  FOR SELECT
-  TO anon
-  USING (true); 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'lucky_draw_winners'
+    AND policyname = 'Public can read lucky draw winners'
+  ) THEN
+    CREATE POLICY "Public can read lucky draw winners"
+      ON lucky_draw_winners
+      FOR SELECT
+      TO anon
+      USING (true);
+  END IF;
+END $$; 
