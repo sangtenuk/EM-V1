@@ -7,6 +7,7 @@ import DemoNotice from './components/DemoNotice'
 import Layout from './components/Layout'
 import HybridInitializer from './components/HybridInitializer'
 import AuthPage from './components/auth/AuthPage'
+import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import Dashboard from './components/admin/Dashboard'
 import CompanyManagement from './components/admin/CompanyManagement'
 import EventManagement from './components/admin/EventManagement'
@@ -126,6 +127,7 @@ function App() {
 
           {/* Auth Routes */}
           <Route path="/auth" element={(!user && !offlineUser) ? <AuthPage /> : <Navigate to="/admin" />} />
+          <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
           {/* Protected Admin Routes */}
           <Route
