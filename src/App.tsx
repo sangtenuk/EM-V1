@@ -2,10 +2,8 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { supabase } from './lib/supabase'
-import { useOfflineAuthStore } from './lib/offlineAuthStore'
 import DemoNotice from './components/DemoNotice'
 import Layout from './components/Layout'
-import HybridInitializer from './components/HybridInitializer'
 import AuthPage from './components/auth/AuthPage'
 import ResetPasswordPage from './components/auth/ResetPasswordPage'
 import Dashboard from './components/admin/Dashboard'
@@ -35,7 +33,6 @@ function App() {
   const [userCompany, setUserCompany] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [hasValidConfig, setHasValidConfig] = useState(true)
-  const { currentUser: offlineUser, isOfflineMode } = useOfflineAuthStore()
 
   useEffect(() => {
     // Check if Supabase is properly configured
@@ -115,7 +112,6 @@ function App() {
     <Router>
       <div className="App">
         <Toaster position="top-right" />
-        <HybridInitializer />
         <Routes>
           {/* Public Routes */}
           <Route path="/public/register/:eventId" element={<Registration />} />
@@ -126,30 +122,26 @@ function App() {
           <Route path="/public/venue/:eventId/:attendeeId" element={<AttendeeVenueView />} />
 
           {/* Auth Routes */}
-          <Route path="/auth" element={(!user && !offlineUser) ? <AuthPage /> : <Navigate to="/admin" />} />
+          <Route path="/auth" element={!user ? <AuthPage /> : <Navigate to="/admin" />} />
           <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
 
           {/* Protected Admin Routes */}
           <Route
             path="/admin/*"
             element={
-              (user || offlineUser) ? (
+              user ? (
                 <Layout userCompany={userCompany}>
                   <Routes>
                     <Route path="/" element={<Dashboard userCompany={userCompany} />} />
-                    {(!offlineUser || offlineUser.type === 'admin' || offlineUser.type === 'superadmin') && (
-                      <>
-                        <Route path="/companies" element={<CompanyManagement />} />
-                        <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
-                        <Route path="/events/:eventId" element={<EventManagement userCompany={userCompany} />} />
-                        <Route path="/progress" element={<MonthlyProgress />} />
-                        <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
-                        <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
-                        <Route path="/qr-generator" element={<QRCodeGenerator userCompany={userCompany} />} />
-                        <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
-                        <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
-                      </>
-                    )}
+                    <Route path="/companies" element={<CompanyManagement />} />
+                    <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
+                    <Route path="/events/:eventId" element={<EventManagement userCompany={userCompany} />} />
+                    <Route path="/progress" element={<MonthlyProgress />} />
+                    <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
+                    <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
+                    <Route path="/qr-generator" element={<QRCodeGenerator userCompany={userCompany} />} />
+                    <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
+                    <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
                     <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
                     <Route path="/checkin" element={<CheckInSystem userCompany={userCompany} />} />
                     <Route path="/welcome-monitor" element={<WelcomeMonitor userCompany={userCompany} />} />
@@ -164,7 +156,7 @@ function App() {
           />
 
           {/* Default redirect */}
-          <Route path="/" element={<Navigate to={(user || offlineUser) ? '/admin' : '/auth'} />} />
+          <Route path="/" element={<Navigate to={user ? '/admin' : '/auth'} />} />
         </Routes>
       </div>
     </Router>
