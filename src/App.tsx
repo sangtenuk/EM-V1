@@ -136,7 +136,7 @@ function App() {
                     <Route path="/companies" element={<CompanyManagement />} />
                     <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
                     <Route path="/events/:eventId" element={<EventManagement userCompany={userCompany} />} />
-                    <Route path="/progress" element={<MonthlyProgress userCompany={userCompany} />} />
+                    <Route path="/progress" element={<MonthlyProgress />} />
                     <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
                     <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
                     <Route path="/qr-generator" element={<QRCodeGenerator userCompany={userCompany} />} />
