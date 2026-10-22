@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import toast from 'react-hot-toast'
 
+// Keep password-reset links on the production app, not an old hosting domain.
+const APP_URL = (import.meta.env.VITE_APP_URL || 'https://eventmanagement.tenukians.workers.dev').replace(/\/$/, '')
+
 export default function AuthPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,16 +20,20 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password })
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${APP_URL}/auth` },
+        })
         if (error) throw error
-        toast.success('Account created successfully!')
+        toast.success('Account created successfully! Check your email if confirmation is required.')
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
         navigate('/admin')
       }
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Authentication failed. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -34,22 +41,21 @@ export default function AuthPage() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email) {
+    if (!email.trim()) {
       toast.error('Please enter your email address')
       return
     }
 
     setIsLoading(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${APP_URL}/auth/reset-password`,
       })
       if (error) throw error
-      toast.success('Password reset link sent to your email!')
+      toast.success('If an account exists for this email, a password reset link will be sent.')
       setIsForgotPassword(false)
-      setEmail('')
-    } catch (error: any) {
-      toast.error(error.message)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Could not request a password reset.')
     } finally {
       setIsLoading(false)
     }
@@ -63,7 +69,7 @@ export default function AuthPage() {
             {isForgotPassword ? 'Reset your password' : (isSignUp ? 'Create your account' : 'Sign in to your account')}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {isForgotPassword ? 'Enter your email to receive a reset link' : 'Event Management System'}
+            {isForgotPassword ? 'Enter your email to receive a secure reset link' : 'Event Management System'}
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={isForgotPassword ? handleForgotPassword : handleAuth}>
@@ -74,6 +80,7 @@ export default function AuthPage() {
                 id="email"
                 name="email"
                 type="email"
+                autoComplete="email"
                 required
                 className="relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Email address"
@@ -88,9 +95,11 @@ export default function AuthPage() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                  minLength={6}
                   required
                   className="relative block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Password"
+                  placeholder="Password (minimum 6 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -98,15 +107,13 @@ export default function AuthPage() {
             )}
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {isLoading ? 'Loading...' : (isForgotPassword ? 'Send reset link' : (isSignUp ? 'Sign up' : 'Sign in'))}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {isLoading ? 'Please wait...' : (isForgotPassword ? 'Send reset link' : (isSignUp ? 'Sign up' : 'Sign in'))}
+          </button>
 
           <div className="text-center space-y-2">
             {!isForgotPassword && (
@@ -121,10 +128,7 @@ export default function AuthPage() {
             {isForgotPassword ? (
               <button
                 type="button"
-                onClick={() => {
-                  setIsForgotPassword(false)
-                  setEmail('')
-                }}
+                onClick={() => setIsForgotPassword(false)}
                 className="block w-full text-blue-600 hover:text-blue-500 text-sm"
               >
                 Back to sign in
