@@ -2,8 +2,6 @@ import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { LogOut, Building2, Calendar, Users, QrCode, Monitor, Gift, Image, MapPin, BarChart3, Vote, Sparkles, Menu, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { useGlobalModeStore, HybridMode } from '../lib/globalModeStore';
-import { useOfflineAuthStore } from '../lib/offlineAuthStore'
 import GlobalSearch from './admin/GlobalSearch'
 
 
@@ -37,18 +35,11 @@ const navigation = [
 export default function Layout({ children, userCompany }: LayoutProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const { mode, setMode } = useGlobalModeStore();
-  const { currentUser: offlineUser, logoutOffline } = useOfflineAuthStore();
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleSignOut = async () => {
-    if (offlineUser) {
-      logoutOffline()
-      navigate('/')
-    } else {
-      await supabase.auth.signOut()
-      navigate('/')
-    }
+    await supabase.auth.signOut()
+    navigate('/')
   }
 
   const closeSidebar = () => {
@@ -81,11 +72,6 @@ export default function Layout({ children, userCompany }: LayoutProps) {
                 {userCompany && (
                   <p className="text-xs text-blue-100 truncate font-medium">{userCompany.company.name}</p>
                 )}
-                {offlineUser && (
-                  <p className="text-xs text-blue-100 truncate font-medium">
-                    {offlineUser.name} ({offlineUser.type})
-                  </p>
-                )}
                 <h6 className="text-xs text-blue-100 truncate font-small">powered by <i>sangtenuk</i></h6>
               </div>
             </div>
@@ -98,23 +84,6 @@ export default function Layout({ children, userCompany }: LayoutProps) {
             </button>
           </div>
 
-          {/* Data Mode Toggle (admin only) */}
-          {!userCompany && (
-            <div className="px-6 py-4 border-b border-gray-200 bg-white">
-              <label htmlFor="hybrid-mode-select" className="block text-xs font-bold text-gray-700 mb-1">Data Mode</label>
-              <select
-                id="hybrid-mode-select"
-                value={mode}
-                onChange={e => setMode(e.target.value as HybridMode)}
-                className="w-full px-2 py-1 border border-gray-300 rounded-md text-gray-900 text-xs"
-              >
-                <option value="online">Online (Supabase)</option>
-                <option value="offline">Offline (Local Only)</option>
-                <option value="hybrid">Hybrid (Sync)</option>
-              </select>
-            </div>
-          )}
-
           {/* Search */}
           <div className="px-4 py-2 border-b border-gray-200">
             <GlobalSearch userCompany={userCompany} />
@@ -125,19 +94,6 @@ export default function Layout({ children, userCompany }: LayoutProps) {
             {navigation.filter(item => {
               // Hide Companies link for company users
               if (userCompany && item.href === '/admin/companies') return false
-              
-              // Filter based on offline user type
-              if (offlineUser) {
-                if (offlineUser.type === 'guest') {
-                  // Guest users only see basic features
-                  return ['/admin', '/admin/attendees', '/admin/checkin'].includes(item.href)
-                } else if (offlineUser.type === 'admin') {
-                  // Admin users see most features but not all
-                  return !['/admin/companies'].includes(item.href)
-                }
-                // Superadmin sees everything
-              }
-              
               return true
             }).map((item) => {
               const Icon = item.icon
