@@ -133,16 +133,15 @@ function App() {
                 <Layout userCompany={userCompany}>
                   <Routes>
                     <Route path="/" element={<Dashboard userCompany={userCompany} />} />
-                    
-                        <Route path="/companies" element={<CompanyManagement />} />
-                        <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
-                        <Route path="/events/:eventId" element={<EventManagement userCompany={userCompany} />} />
-                        <Route path="/progress" element={<MonthlyProgress />} />
-                        <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
-                        <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
-                        <Route path="/qr-generator" element={<QRCodeGenerator userCompany={userCompany} />} />
-                        <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
-                        <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
+                    <Route path="/companies" element={<CompanyManagement />} />
+                    <Route path="/events" element={<EventManagement userCompany={userCompany} />} />
+                    <Route path="/events/:eventId" element={<EventManagement userCompany={userCompany} />} />
+                    <Route path="/progress" element={<MonthlyProgress userCompany={userCompany} />} />
+                    <Route path="/gallery" element={<EventGallery userCompany={userCompany} />} />
+                    <Route path="/seating" element={<SeatingArrangement userCompany={userCompany} />} />
+                    <Route path="/qr-generator" element={<QRCodeGenerator userCompany={userCompany} />} />
+                    <Route path="/voting" element={<VotingAdmin userCompany={userCompany} />} />
+                    <Route path="/voting-monitor" element={<VotingMonitor userCompany={userCompany} />} />
                     <Route path="/attendees" element={<AttendeeManagement userCompany={userCompany} />} />
                     <Route path="/checkin" element={<CheckInSystem userCompany={userCompany} />} />
                     <Route path="/welcome-monitor" element={<WelcomeMonitor userCompany={userCompany} />} />
