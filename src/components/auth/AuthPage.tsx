@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react' 
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { useOfflineAuthStore } from '../../lib/offlineAuthStore'
-import { useSyncStatusStore } from '../../lib/hybridDB'
 import toast from 'react-hot-toast'
 
 export default function AuthPage() {
@@ -10,62 +8,22 @@ export default function AuthPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
-  const [showOfflineMode, setShowOfflineMode] = useState(false)
   const [isForgotPassword, setIsForgotPassword] = useState(false)
   const navigate = useNavigate()
-  
-  const { isOnline } = useSyncStatusStore()
-  const { 
-    isOfflineMode, 
-    setIsOfflineMode, 
-    loginOffline, 
-    logoutOffline, 
-    currentUser: offlineUser 
-  } = useOfflineAuthStore()
-
-  // Check if we should show offline mode
-  useEffect(() => {
-    if (!isOnline) {
-      setShowOfflineMode(true)
-      setIsOfflineMode(true) // Automatically switch to offline mode when no internet
-    } else {
-      setShowOfflineMode(false)
-      setIsOfflineMode(false) // Switch back to online mode when internet is available
-    }
-  }, [isOnline, setIsOfflineMode])
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      if (isOfflineMode) {
-        // Handle offline authentication - no password required
-        const user = loginOffline(email, '')
-        if (user) {
-          setIsOfflineMode(true)
-          toast.success(`Welcome ${user.name}!`)
-          navigate('/admin')
-        } else {
-          toast.error('Invalid offline credentials')
-        }
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({ email, password })
+        if (error) throw error
+        toast.success('Account created successfully!')
       } else {
-        // Handle online authentication
-        if (isSignUp) {
-          const { error } = await supabase.auth.signUp({
-            email,
-            password,
-          })
-          if (error) throw error
-          toast.success('Account created successfully!')
-        } else {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          })
-          if (error) throw error
-          navigate('/admin')
-        }
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        navigate('/admin')
       }
     } catch (error: any) {
       toast.error(error.message)
@@ -102,42 +60,16 @@ export default function AuthPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            {isOfflineMode ? 'Offline Mode' : (isForgotPassword ? 'Reset your password' : (isSignUp ? 'Create your account' : 'Sign in to your account'))}
+            {isForgotPassword ? 'Reset your password' : (isSignUp ? 'Create your account' : 'Sign in to your account')}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {isOfflineMode ? 'No internet connection detected' : (isForgotPassword ? 'Enter your email to receive a reset link' : 'Event Management System')}
+            {isForgotPassword ? 'Enter your email to receive a reset link' : 'Event Management System'}
           </p>
-          {showOfflineMode && !isOfflineMode && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800">
-                No internet connection. You can use offline mode with these accounts:
-              </p>
-              <div className="mt-2 text-xs text-yellow-700">
-                <p><strong>Super Admin:</strong> admin@offline (no password)</p>
-                <p><strong>Admin:</strong> admin@offline.com (no password)</p>
-                <p><strong>Guest:</strong> guest@offline.com (no password)</p>
-              </div>
-              <button
-                onClick={() => setIsOfflineMode(true)}
-                className="mt-2 px-3 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700"
-              >
-                Switch to Offline Mode
-              </button>
-              <button
-                onClick={() => setIsOfflineMode(false)}
-                className="mt-2 ml-2 px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
-              >
-                Switch to Online Mode
-              </button>
-            </div>
-          )}
         </div>
         <form className="mt-8 space-y-6" onSubmit={isForgotPassword ? handleForgotPassword : handleAuth}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
+              <label htmlFor="email" className="sr-only">Email address</label>
               <input
                 id="email"
                 name="email"
@@ -149,11 +81,9 @@ export default function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
-            {!isOfflineMode && !isForgotPassword && (
+            {!isForgotPassword && (
               <div>
-                <label htmlFor="password" className="sr-only">
-                  Password
-                </label>
+                <label htmlFor="password" className="sr-only">Password</label>
                 <input
                   id="password"
                   name="password"
@@ -179,7 +109,7 @@ export default function AuthPage() {
           </div>
 
           <div className="text-center space-y-2">
-            {!isForgotPassword && !isOfflineMode && (
+            {!isForgotPassword && (
               <button
                 type="button"
                 onClick={() => setIsForgotPassword(true)}
